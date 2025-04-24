@@ -107,6 +107,13 @@ public class MyGame extends VariableFrameRateGame
     private Vector3f loc, fwd, up, right;
     private Camera cam;
 	private float maxDistance;
+
+	//mouse movement variables
+	private boolean recentering;
+	private String camPos = "orbit";
+	private float curX, curY, centerX, centerY, prevX, prevY;
+	private float sensitivity = 0.02f;
+	private Robot robot;
     
 	public MyGame(String serverAddress, int serverPort, String protocol) { 
 		super(); 
@@ -413,6 +420,36 @@ public class MyGame extends VariableFrameRateGame
 		}
 	}
 
+	// ----- Mouse Tracking -----
+	public void initMouse() {
+		Viewport vw = engine.getRenderSystem().getViewport("MAIN");
+		float left = vw.getActualLeft();
+		float bottom = vw.getActualBottom();
+		float width = vw.getActualWidth();
+		float height = vw.getActualHeight();
+		System.out.println("left: " + left + "bottom: " + bottom + "width: " + width + "height: " + height);
+		centerX = (int) (left + width/2);
+		centerY = (int) (bottom - height/2); 
+
+		
+		recentering = false;
+		try // note that some platforms may not support the Robot class
+		{ robot = new Robot(); } catch (AWTException ex)
+		{ throw new RuntimeException("Couldn't create Robot!"); }
+		recenterMouse();
+		prevX = centerX; // 'prevMouse' defines the initial
+		prevY = centerY; // mouse position
+		
+
+		/* also change the cursor
+		Image faceImage = new
+		ImageIcon("./assets/textures/face.gif").getImage();
+		Cursor faceCursor = Toolkit.getDefaultToolkit().
+		createCustomCursor(faceImage, new Point(0,0), "FaceCursor");
+		canvas = rs.getCanvas();
+		canvas.setCursor(faceCursor);
+		*/
+	}
 
 	@Override // init game
 	public void initializeGame()
@@ -443,8 +480,10 @@ public class MyGame extends VariableFrameRateGame
 
 		// ----- Networking -----
 		setupNetworking();
-		// ----- input manager -----
+		// ----- Input manager -----
 		initializeIM();
+		// ----- Mouse tracking -----
+		initMouse();
 	}
 
 	@Override
@@ -581,6 +620,50 @@ public class MyGame extends VariableFrameRateGame
 		}
 	}
 
+	private void recenterMouse() {
+		RenderSystem rs = engine.getRenderSystem();
+		Viewport vw = rs.getViewport("MAIN");
+		float left = vw.getActualLeft();
+		float bottom = vw.getActualBottom();
+		float width = vw.getActualWidth();
+		float height = vw.getActualHeight();
+		int centerX = (int) (left + width/2.0f);
+		int centerY = (int) (bottom - height/2.0f);
+		recentering = true;
+		System.out.println("centerX: " + centerX + "centerY: " + centerY);
+		robot.mouseMove((int)centerX, (int)centerY);
+	}
+
+	@Override
+    public void mouseMoved(MouseEvent e) {
+        if(recentering && centerX == e.getXOnScreen() && centerY == e.getYOnScreen()) {
+			recentering = false;
+		}
+		else {
+			curX = e.getXOnScreen();
+			curY = e.getYOnScreen();
+			float delX = prevX - curX;
+			float delY = prevY - curY;
+
+			if(camPos == "fpv") {
+				//yaw(delX);
+				//pitch(delY);
+			}
+			else if(camPos == "orbit") {
+				orbitController.updateAzimuth(delX*sensitivity);
+				orbitController.updateElevation(-delY*sensitivity);
+			}
+
+			System.out.println("curX: " + e.getXOnScreen() + "curY: " + e.getYOnScreen());
+
+			prevX = curX;
+			prevY = curY;
+			recenterMouse();
+			prevX = centerX;
+			prevY = centerY;
+		}
+    }
+
 	@Override
 	public void update()
 	{
@@ -610,8 +693,8 @@ public class MyGame extends VariableFrameRateGame
 		// ####### DELETE LATER OR FIX OR ADAPT LOL
 		// Update altitude of dolphin to hug height map
 		Vector3f loc = avatar.getWorldLocation();
-		float height = terr.getHeight(loc.x(), loc.z());
-		avatar.setLocalLocation(new Vector3f(loc.x(), height, loc.z()));
+		float terHeight = terr.getHeight(loc.x(), loc.z());
+		avatar.setLocalLocation(new Vector3f(loc.x(), terHeight, loc.z()));
 		
 		// -camera control-
 		orbitController.updateCameraPosition();

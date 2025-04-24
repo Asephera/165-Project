@@ -112,7 +112,7 @@ public class CameraOrbit3D {
             camera.setLocation(new Vector3f(x,y,z).add(avatar.getWorldLocation()));
             camera.lookAt(avatar);
         }
-        else {
+        else { //if overhead cam
             camPos = camera.getLocation();
             camera.lookAt(new Vector3f(camPos.x, 0, camPos.z)); // Always looking down
         }
@@ -253,5 +253,15 @@ public class CameraOrbit3D {
             cameraRadius = cameraRadius % 360;
             updateCameraPosition();
         } 
+    }
+
+    public void updateAzimuth(float amount) {
+        cameraAzimuth += amount;
+        updateCameraPosition();
+    }
+
+    public void updateElevation(float amount) {
+        cameraElevation += amount;
+        updateCameraPosition();
     }
 }
