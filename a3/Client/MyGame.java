@@ -17,30 +17,29 @@
 
 package a3.Client;
 
+// Tage
 import tage.*;
 import tage.shapes.*;
 import tage.nodeControllers.*;
-
-// import inputManager (might import too much)
 import tage.input.*; 
 import tage.input.action.*;
 import tage.networking.IGameConnection.ProtocolType;
+import static tage.VariableFrameRateGame.*;
+import tage.physics.*;
+
+// Java and J libraries
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
 import net.java.games.input.*;
 import net.java.games.input.Component.Identifier.*;
-
+import com.bulletphysics.*;
+import javax.swing.*;
+import org.joml.*;
 import java.lang.Math;
 import java.net.InetAddress;
 import java.net.ProtocolException;
 import java.net.UnknownHostException;
-
-import static tage.VariableFrameRateGame.*;
-
-import java.awt.*;
-import java.awt.event.*;
-import java.io.*;
-import javax.swing.*;
-import org.joml.*;
-
 import jogamp.opengl.awt.VersionApplet;
 
 public class MyGame extends VariableFrameRateGame
@@ -65,17 +64,25 @@ public class MyGame extends VariableFrameRateGame
 	private CameraOrbit3D orbitController, overheadController;
 	private String gpName;
 
-	// networking
-	private String serverAddress;
-	private int serverPort;
-	private ProtocolType serverProtocol;
-	private ProtocolClient protClient;
-	private boolean isClientConnected = false;
+	// Object vars
+	private Car car;
+	private GameObject nearest, avatar, tree, terr, sphere, cube, tor, xLine, yLine, zLine, xLine2, yLine2, zLine2, pyr, floor;
+	private ObjShape dolS, treeS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS;
+	private TextureImage doltx, treeTx, ghostT, hills, grass, spheretx, cubtx, tortx, pyrtx, boomtx, planetx, spheretx2, cubtx2, tortx2, pyrtx2;
+	private Light light1, light2, light3, light4, light5;
+	Vector3f lightAbove = new Vector3f(0f,2f,0f);
+	Vector3f origin = new Vector3f(0,0,0);
+	private Vector3f avatarLoc;
+	private int fluffyClouds; // skyboxes
 
 	// Object vars 2 (will fix latr) (car things)
 	private GameObject frontDoor1, backDoor1, engine1, tire1, spoiler1;
 	private ObjShape frontLeftDoorS, frontRightDoorS, backLeftDoorS, backRightDoorS, tireS, spoilerS, engineS;
 	private TextureImage frontLeftDoorTx, frontRightDoorTx, backLeftDoorTx, backRightDoorTx, tireTx, spoilerTx, engineTx;
+
+	// Physics 
+	private PhysicsEngine physicsEngine;
+	private PhysicsObject e;
 
 	// Object types
 	// +++++ Consider carFrontLeft / carFrontRight door etc
@@ -92,28 +99,25 @@ public class MyGame extends VariableFrameRateGame
 	private boolean[] exploded = new boolean[numSatelites];
 	private TextureImage[][] textureArray = new TextureImage[numSatelites][2]; // 2 textures per satellite
 
-	// Object vars
-	private Car car;
-    private GameObject nearest, avatar, tree, terr, sphere, cube, tor, xLine, yLine, zLine, xLine2, yLine2, zLine2, pyr, floor;
-    private ObjShape dolS, treeS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS;
-	private TextureImage doltx, treeTx, ghostT, hills, grass, spheretx, cubtx, tortx, pyrtx, boomtx, planetx, spheretx2, cubtx2, tortx2, pyrtx2;
-    private Light light1, light2, light3, light4, light5;
-	Vector3f lightAbove = new Vector3f(0f,2f,0f);
-	Vector3f origin = new Vector3f(0,0,0);
-	private Vector3f avatarLoc;
-	private int fluffyClouds; // skyboxes
-
     // Camera Control
     private Vector3f loc, fwd, up, right;
     private Camera cam;
 	private float maxDistance;
 
-	//mouse movement variables
+	// Mouse movement variables
 	private boolean recentering;
-	private String camPos = "orbit";
-	private float curX, curY, centerX, centerY, prevX, prevY;
-	private float sensitivity = 0.02f;
+	private String viewType = "orbit";
+	private int centerX, centerY;
+	private float curX, curY, prevX, prevY;
+	private float sensitivity = 0.1f;
 	private Robot robot;
+
+	// networking
+	private String serverAddress;
+	private int serverPort;
+	private ProtocolType serverProtocol;
+	private ProtocolClient protClient;
+	private boolean isClientConnected = false;
     
 	public MyGame(String serverAddress, int serverPort, String protocol) { 
 		super(); 
@@ -133,7 +137,7 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void loadShapes()
 	{	
-		dolS = new ImportedModel("dolphinHighPoly.obj");
+		dolS = new ImportedModel("Car Chassis Blockout.obj");
 		terrS = new TerrainPlane(1000); // pixels per axis
 		ghostS = new Sphere();
 		xLineS = new Line(origin, new Vector3f(3,0,0));
@@ -203,7 +207,7 @@ public class MyGame extends VariableFrameRateGame
 	{	Matrix4f initialTranslation, initialScale, initialRotation; // ##### to be removed 
 
         // build cube
-		// ##### Abstracted for just CUBE so far, rest are still grandfathered with old method
+		// ##### Abstracted for just some so far, rest are still grandfathered with old method
         cube = new GameObject(GameObject.root(), cubeS, cubtx);
 		build(cube, new Vector3f(6,0.5f,10), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0,0,0));
 		satelliteArray[0] = cube; // load to array for future use
@@ -263,7 +267,7 @@ public class MyGame extends VariableFrameRateGame
         floor.setLocalScale(initialScale);
 		
         //build dolphin 
-        avatar = new GameObject(GameObject.root(), dolS, doltx);
+        avatar = new GameObject(GameObject.root(), dolS);
 		initialTranslation = (new Matrix4f()).translation(0,0.5f,6);
 		initialScale = (new Matrix4f()).scaling(3.0f);
 		initialRotation = (new Matrix4f()).identity().rotationY(
@@ -620,6 +624,7 @@ public class MyGame extends VariableFrameRateGame
 		}
 	}
 
+	/* MOUSE CAMERA MOVEMENT */
 	private void recenterMouse() {
 		RenderSystem rs = engine.getRenderSystem();
 		Viewport vw = rs.getViewport("MAIN");
@@ -627,13 +632,13 @@ public class MyGame extends VariableFrameRateGame
 		float bottom = vw.getActualBottom();
 		float width = vw.getActualWidth();
 		float height = vw.getActualHeight();
-		int centerX = (int) (left + width/2.0f);
-		int centerY = (int) (bottom - height/2.0f);
+		centerX = (int) (left + width/2.0f);
+		centerY = (int) (bottom - height/2.0f);
 		recentering = true;
-		System.out.println("centerX: " + centerX + "centerY: " + centerY);
 		robot.mouseMove((int)centerX, (int)centerY);
 	}
 
+	/* - */
 	@Override
     public void mouseMoved(MouseEvent e) {
         if(recentering && centerX == e.getXOnScreen() && centerY == e.getYOnScreen()) {
@@ -645,24 +650,46 @@ public class MyGame extends VariableFrameRateGame
 			float delX = prevX - curX;
 			float delY = prevY - curY;
 
-			if(camPos == "fpv") {
+			if(viewType == "fpv") {
 				//yaw(delX);
 				//pitch(delY);
 			}
-			else if(camPos == "orbit") {
+			else if(viewType == "orbit") {
 				orbitController.updateAzimuth(delX*sensitivity);
 				orbitController.updateElevation(-delY*sensitivity);
 			}
-
-			System.out.println("curX: " + e.getXOnScreen() + "curY: " + e.getYOnScreen());
-
-			prevX = curX;
-			prevY = curY;
 			recenterMouse();
 			prevX = centerX;
 			prevY = centerY;
 		}
     }
+
+	/* - */
+	@Override
+    public void mouseDragged(MouseEvent e) {
+        if(recentering && centerX == e.getXOnScreen() && centerY == e.getYOnScreen()) {
+			recentering = false;
+		}
+		else {
+			curX = e.getXOnScreen();
+			curY = e.getYOnScreen();
+			float delX = prevX - curX;
+			float delY = prevY - curY;
+
+			if(viewType == "fpv") {
+				//yaw(delX);
+				//pitch(delY);
+			}
+			else if(viewType == "orbit") {
+				orbitController.updateAzimuth(delX*sensitivity);
+				orbitController.updateElevation(-delY*sensitivity);
+			}
+			recenterMouse();
+			prevX = centerX;
+			prevY = centerY;
+		}
+    }
+	/* --------------------- */
 
 	@Override
 	public void update()
