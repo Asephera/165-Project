@@ -40,7 +40,7 @@ public class CameraOrbit3D {
         
         if(isOrbit) {
             cameraElevation = 30.0f;
-            cameraRadius = 3.0f;
+            cameraRadius = 15.0f;
         }
         else { // (isOverhead)
             cameraElevation = 90.0f;

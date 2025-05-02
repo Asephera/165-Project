@@ -68,7 +68,16 @@ public class GameServerUDP extends GameConnectionServer<UUID>
 			{	UUID clientID = UUID.fromString(messageTokens[1]);
 				String[] pos = {messageTokens[2], messageTokens[3], messageTokens[4]};
 				sendMoveMessages(clientID, pos);
-	}	}	}
+			}
+			
+			// YAW --- Case where server receives a yaw message
+			// Received Message Format: (yaw,localId,angle)
+			if(messageTokens[0].compareTo("yaw") == 0)
+			{	UUID clientID = UUID.fromString(messageTokens[1]);
+				String yawAngle = messageTokens[2];
+				sendYawMessage(clientID, yawAngle);
+			}
+}	}
 
 	// Informs the client who just requested to join the server if their if their 
 	// request was able to be granted. 
@@ -167,6 +176,18 @@ public class GameServerUDP extends GameConnectionServer<UUID>
 			forwardPacketToAll(message, clientID);
 		} 
 		catch (IOException e) 
+		{	e.printStackTrace();
+	}	}
+
+	//
+
+	public void sendYawMessage(UUID clientID, String angle)
+	{	try 
+		{	String message = new String("yaw," + clientID.toString());
+			message += "," + angle;
+			
+			forwardPacketToAll(message, clientID);
+		} catch (IOException e) 
 		{	e.printStackTrace();
 	}	}
 }

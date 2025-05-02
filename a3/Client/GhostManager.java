@@ -49,9 +49,12 @@ public class GhostManager {
 		return null;
 	}
 	
-	public void updateGhostAvatar(UUID id, Vector3f position) {	
+	public void updateGhostAvatar(UUID id, Vector3f position, float yawAngle) {	
         GhostAvatar ghostAvatar = findAvatar(id);
-		if (ghostAvatar != null) { ghostAvatar.setPosition(position); }
+		if (ghostAvatar != null) { 
+			if(position != null) { ghostAvatar.setPosition(position); }
+			if(yawAngle != 0) { ghostAvatar.globalYaw(yawAngle); } // this is wrong, you should send like the avatar fwd vector and then use that to set the rotation
+		}
 		else { System.out.println("tried to update ghost avatar position, but unable to find ghost in list"); }
 	}
 }

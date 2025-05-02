@@ -103,7 +103,21 @@ public class ProtocolClient extends GameConnectionClient {
 					Float.parseFloat(messageTokens[3]),
 					Float.parseFloat(messageTokens[4]));
 				
-				ghostManager.updateGhostAvatar(ghostID, ghostPosition);
+				ghostManager.updateGhostAvatar(ghostID, ghostPosition, 0);
+            }
+
+			// Handle YAW message
+			// Format: (yaw,remoteId,angle)
+			if (messageTokens[0].compareTo("yaw") == 0)
+			{
+				// yaw a ghost avatar
+				// Parse out the id into a UUID
+				UUID ghostID = UUID.fromString(messageTokens[1]);
+				
+				// Parse out the angle into a float
+				float angle = Float.parseFloat(messageTokens[2]);
+				
+				ghostManager.updateGhostAvatar(ghostID, null, angle);
             }
         }
     }
@@ -174,6 +188,19 @@ public class ProtocolClient extends GameConnectionClient {
 			message += "," + position.x();
 			message += "," + position.y();
 			message += "," + position.z();
+			
+			sendPacket(message);
+		} catch (IOException e) 
+		{	e.printStackTrace();
+	}	}
+
+	// Informs the server that the local avatar has changed yaw rotation.  
+	// Message Format: (yaw,localId,angle) where angle is the rotation about the Y axis.
+
+	public void sendYawMessage(float angle)
+	{	try 
+		{	String message = new String("yaw," + id.toString());
+			message += "," + angle;
 			
 			sendPacket(message);
 		} catch (IOException e) 

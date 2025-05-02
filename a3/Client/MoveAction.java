@@ -1,6 +1,10 @@
 package a3.Client;
 
 import tage.*;
+import tage.physics.*;
+import tage.shapes.AnimatedShape;
+
+import org.joml.*;
 import tage.input.action.AbstractInputAction;
 import net.java.games.input.Event;
 
@@ -9,6 +13,9 @@ public class MoveAction extends AbstractInputAction
     private float speed;
     private static float modifier = 1;
     private GameObject av;
+    private PhysicsObject car;
+    private AnimatedShape carS;
+    Vector3f fwdVec;
     private ProtocolClient protClient;
 
     public MoveAction(MyGame g, float spd, ProtocolClient p) 
@@ -25,10 +32,19 @@ public class MoveAction extends AbstractInputAction
     public void performAction(float time, Event e) 
     {   float keyValue = e.getValue();
         if (keyValue > -0.2 && keyValue < 0.2) return; // deadzone
-        
         float finalSpeed = speed * keyValue * modifier;
+        
+        // simple car sliding movement
         av = game.getAvatar();
-        if(game.avatarBounding(finalSpeed)) { av.move(finalSpeed); }
+        car = game.getPhysCar();
+        carS = game.getTires();
+        
+        fwdVec = av.getWorldForwardVector().mul(finalSpeed * 300);
+        car.applyForce(fwdVec.x, fwdVec.y, fwdVec.z, 0, 0, 0);
+        
         protClient.sendMoveMessage(av.getWorldLocation());
+
+        // old poop NON physics movement, pfff what a looser (I am dying inside)
+        //if(game.avatarBounding(finalSpeed)) { av.move(finalSpeed); }
     }   
 }

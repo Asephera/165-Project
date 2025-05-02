@@ -19,6 +19,7 @@ package a3.Client;
 
 // Tage
 import tage.*;
+import tage.audio.*;
 import tage.shapes.*;
 import tage.nodeControllers.*;
 import tage.input.*; 
@@ -26,6 +27,8 @@ import tage.input.action.*;
 import tage.networking.IGameConnection.ProtocolType;
 import static tage.VariableFrameRateGame.*;
 import tage.physics.*;
+import tage.physics.JBullet.JBulletPhysicsEngine;
+import tage.physics.JBullet.JBulletPhysicsObject;
 
 // Java and J libraries
 import java.awt.*;
@@ -67,13 +70,14 @@ public class MyGame extends VariableFrameRateGame
 	// Object vars
 	private Car car;
 	private GameObject nearest, avatar, tree, terr, sphere, cube, tor, xLine, yLine, zLine, xLine2, yLine2, zLine2, pyr, floor;
-	private ObjShape dolS, treeS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS;
+	private ObjShape carSXXXXXXXXXXXXXXX, treeS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS;
 	private TextureImage doltx, treeTx, ghostT, hills, grass, spheretx, cubtx, tortx, pyrtx, boomtx, planetx, spheretx2, cubtx2, tortx2, pyrtx2;
 	private Light light1, light2, light3, light4, light5;
 	Vector3f lightAbove = new Vector3f(0f,2f,0f);
 	Vector3f origin = new Vector3f(0,0,0);
 	private Vector3f avatarLoc;
 	private int fluffyClouds; // skyboxes
+	private AnimatedShape carS;
 
 	// Object vars 2 (will fix latr) (car things)
 	private GameObject frontDoor1, backDoor1, engine1, tire1, spoiler1;
@@ -82,7 +86,7 @@ public class MyGame extends VariableFrameRateGame
 
 	// Physics 
 	private PhysicsEngine physicsEngine;
-	private PhysicsObject e;
+	private PhysicsObject carPO, terrPO, tirePO;
 
 	// Object types
 	// +++++ Consider carFrontLeft / carFrontRight door etc
@@ -118,6 +122,14 @@ public class MyGame extends VariableFrameRateGame
 	private ProtocolType serverProtocol;
 	private ProtocolClient protClient;
 	private boolean isClientConnected = false;
+
+	// vars I need to toggle with buttons
+	private boolean togglePhysics = true;
+	private boolean showPhysics = false;
+
+	// sound
+	private IAudioManager audioMgr;
+	private Sound sound1;
     
 	public MyGame(String serverAddress, int serverPort, String protocol) { 
 		super(); 
@@ -137,7 +149,8 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void loadShapes()
 	{	
-		dolS = new ImportedModel("Car Chassis Blockout.obj");
+		carS = new AnimatedShape("Car Chassis.rkm", "Car Chassis.rks"); //new ImportedModel("Car Chassis Blockout.obj");
+		carS.loadAnimation("ACCEL", "accelerate.rka");
 		terrS = new TerrainPlane(1000); // pixels per axis
 		ghostS = new Sphere();
 		xLineS = new Line(origin, new Vector3f(3,0,0));
@@ -222,9 +235,9 @@ public class MyGame extends VariableFrameRateGame
 		build(tree, new Vector3f(10f, 2f, 4f), // calculation to place tree stump a little below the ground
 			new Vector3f(2.0f, 2.0f, 2.0f), new Vector3f(0f, 0f, 0f));
 		
-		// build a tire and make it the avatar for now
+		// build a tire
 		tire1 = new GameObject(GameObject.root(), tireS, tireTx);
-		build(tire1, new Vector3f(0f, 0.5f, 14f), // calculation to place tree stump a little below the ground
+		build(tire1, new Vector3f(-5f, 4.5f, 14f), // calculation to place tree stump a little below the ground
 			new Vector3f(3f, 3f, 3f), new Vector3f(0f, 0f, 0f));
 
         // build sphere
@@ -266,9 +279,9 @@ public class MyGame extends VariableFrameRateGame
 		floor.setLocalTranslation(initialTranslation);
         floor.setLocalScale(initialScale);
 		
-        //build dolphin 
-        avatar = new GameObject(GameObject.root(), dolS);
-		initialTranslation = (new Matrix4f()).translation(0,0.5f,6);
+        //build dolphin / car / avatar you get the point (no you dont) 
+        avatar = new GameObject(GameObject.root(), carS, treeTx);
+		initialTranslation = (new Matrix4f()).translation(0,3.5f,10);
 		initialScale = (new Matrix4f()).scaling(3.0f);
 		initialRotation = (new Matrix4f()).identity().rotationY(
 			(float)java.lang.Math.toRadians(180f));
@@ -304,6 +317,24 @@ public class MyGame extends VariableFrameRateGame
 		(engine.getSceneGraph()).setActiveSkyBoxTexture(fluffyClouds);
 		(engine.getSceneGraph()).setSkyBoxEnabled(true);
 	} 
+
+	@Override
+	public void loadSounds() {
+		AudioResource resource1;
+		audioMgr = engine.getAudioManager();
+		resource1 = audioMgr.createAudioResource("tire noises.wav", AudioResourceType.AUDIO_SAMPLE);
+		sound1 = new Sound(resource1, SoundType.SOUND_EFFECT, 100, true);
+		sound1.initialize(audioMgr);
+		sound1.setMaxDistance(20f);
+		sound1.setMinDistance(0.5f);
+		sound1.setRollOff(1f);
+	}
+
+	public void setEarParameters() {
+		Camera camera = (engine.getRenderSystem()).getViewport("MAIN").getCamera();
+		audioMgr.getEar().setLocation(avatar.getWorldLocation());
+		audioMgr.getEar().setOrientation(camera.getN(), new Vector3f(0f,1f,0f));
+	}
 
 	@Override // init lights
 	public void initializeLights()
@@ -347,7 +378,7 @@ public class MyGame extends VariableFrameRateGame
 	}
 
 	// ----- Input Manager -----
-	public void initializeIM() 
+	public void initializeIM()
 	{	im = engine.getInputManager();
 		gpName = im.getFirstGamepadName();
 		System.out.println("initializing input manager");
@@ -355,8 +386,8 @@ public class MyGame extends VariableFrameRateGame
 		// Actions
 		MoveAction fwdAction = new MoveAction(this, moveSpeed, protClient);
 		MoveAction bkwdAction = new MoveAction(this, -moveSpeed, protClient);
-		TurnAction turnLeft = new TurnAction(this, turnSpeed);
-		TurnAction turnRight = new TurnAction(this, -turnSpeed);
+		TurnAction turnLeft = new TurnAction(this, turnSpeed, protClient);
+		TurnAction turnRight = new TurnAction(this, -turnSpeed, protClient);
 		Disarm disarmSattelite = new Disarm(this, nearest);
 		Sprint sprint = new Sprint(this, 1.8f);
 		PitchAction pitchUp = new PitchAction(this, turnSpeed);
@@ -425,7 +456,7 @@ public class MyGame extends VariableFrameRateGame
 	}
 
 	// ----- Mouse Tracking -----
-	public void initMouse() {
+	public void initializeMouseMovement() {
 		Viewport vw = engine.getRenderSystem().getViewport("MAIN");
 		float left = vw.getActualLeft();
 		float bottom = vw.getActualBottom();
@@ -445,7 +476,7 @@ public class MyGame extends VariableFrameRateGame
 		prevY = centerY; // mouse position
 		
 
-		/* also change the cursor
+		/* ADD CURSOR
 		Image faceImage = new
 		ImageIcon("./assets/textures/face.gif").getImage();
 		Cursor faceCursor = Toolkit.getDefaultToolkit().
@@ -453,6 +484,60 @@ public class MyGame extends VariableFrameRateGame
 		canvas = rs.getCanvas();
 		canvas.setCursor(faceCursor);
 		*/
+	}
+
+	private float[] toFloatArray(double[] arr) {
+		if(arr ==null) return null;
+		int n = arr.length;
+		float[] ret = new float[n];
+		for(int i = 0; i<n; i++) { ret[i] = (float)arr[i]; }
+		return ret;
+	}
+
+	private double[] toDoubleArray(float[] arr) {
+		if(arr ==null) return null;
+		int n = arr.length;
+		double[] ret = new double[n];
+		for(int i = 0; i<n; i++) { ret[i] = (double)arr[i]; }
+		return ret;
+	}
+
+	public void initializePhysics() {
+		// Gravity n physics system
+		float[] gravity = {0f, -9.8f, 0f};
+		physicsEngine = (engine.getSceneGraph()).getPhysicsEngine();
+		physicsEngine.setGravity(gravity);
+
+		// Physics world temp vars
+		float up[] = {0, 1, 0};
+		double[] tempTransform;
+		float vals[] = new float[16];
+		float boxSize[] = {5, 4 , 14}; // car dimensions
+
+		Matrix4f translation = new Matrix4f(avatar.getLocalTranslation());
+		tempTransform = toDoubleArray(translation.get(vals));
+		carPO = (engine.getSceneGraph()).addPhysicsBox(4.0f, tempTransform, boxSize);
+		carPO.setBounciness(0.02f);
+		carPO.setFriction(0.1f);
+		avatar.setPhysicsObject(carPO);
+
+		translation = new Matrix4f(tire1.getLocalTranslation());
+		tempTransform = toDoubleArray(translation.get(vals));
+		tirePO = (engine.getSceneGraph()).addPhysicsCapsuleX(0.7f, tempTransform, 1.7f, 0f);
+		tirePO.setBounciness(0.8f);
+		tire1.setPhysicsObject(tirePO);
+
+		translation = new Matrix4f(terr.getLocalTranslation().translate(0,1,0));
+		tempTransform = toDoubleArray(translation.get(vals));
+		terrPO = (engine.getSceneGraph()).addPhysicsStaticPlane(tempTransform, up, 0.0f);
+		terrPO.setBounciness(1.0f);
+		terr.setPhysicsObject(terrPO);
+	}
+
+	public void initializeSound() {
+		sound1.setLocation(tire1.getWorldLocation());
+		setEarParameters();
+		sound1.play();
 	}
 
 	@Override // init game
@@ -482,12 +567,24 @@ public class MyGame extends VariableFrameRateGame
 		(engine.getSceneGraph()).addNodeController(shiCon);
 		shiCon.enable();
 
+		System.out.println("animation: " + carS.getAnimation("ACCEL"));
+		carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+
 		// ----- Networking -----
+		System.out.println("initializing networking..");
 		setupNetworking();
 		// ----- Input manager -----
+		System.out.println("initializing input manager..");
 		initializeIM();
 		// ----- Mouse tracking -----
-		initMouse();
+		System.out.println("initializing mouse movement..");
+		initializeMouseMovement();
+		// ----- Physics! -----
+		System.out.println("initializing physics..");
+		initializePhysics();
+		// ----- Sound -----
+		System.out.println("initializing sound..");
+		initializeSound();
 	}
 
 	@Override
@@ -539,6 +636,8 @@ public class MyGame extends VariableFrameRateGame
 
 	// returns avatar object
 	public GameObject getAvatar() { return avatar; }
+	public AnimatedShape getTires() { return carS; }
+	public PhysicsObject getPhysCar() { return carPO; }
 
 	// returns Car object
 	public Car getCar() { return car; }
@@ -602,7 +701,7 @@ public class MyGame extends VariableFrameRateGame
 	}
 
 	// tracks distance from avatar to each satellite and updates texture / shape accordingly
-	public void collisionChecker()
+	public void satelliteCollision()
 	{	avatarLoc = avatar.getLocalLocation();
 		
 		// if x sattelite is <4 or <2 sets texture appropriately
@@ -621,6 +720,33 @@ public class MyGame extends VariableFrameRateGame
 			if(2 > getDistance(satelliteArray[i].getLocalLocation(), avatarLoc) && !disarm[i]) 
 			{ 	satelliteArray[i].setShape(cubeS); 
 				exploded[i] = true; }
+		}
+	}
+
+	// physics world collision checking
+	private void checkForCollisions()
+	{	com.bulletphysics.dynamics.DynamicsWorld dynamicsWorld;
+		com.bulletphysics.collision.broadphase.Dispatcher dispatcher;
+		com.bulletphysics.collision.narrowphase.PersistentManifold manifold;
+		com.bulletphysics.dynamics.RigidBody object1, object2;
+		com.bulletphysics.collision.narrowphase.ManifoldPoint contactPoint;
+
+		dynamicsWorld = ((JBulletPhysicsEngine)physicsEngine).getDynamicsWorld();
+		dispatcher = dynamicsWorld.getDispatcher();
+		int manifoldCount = dispatcher.getNumManifolds();
+		for (int i=0; i < manifoldCount; i++)
+		{	manifold = dispatcher.getManifoldByIndexInternal(i);
+			object1 = (com.bulletphysics.dynamics.RigidBody)manifold.getBody0();
+			object2 = (com.bulletphysics.dynamics.RigidBody)manifold.getBody1();
+			JBulletPhysicsObject obj1 = JBulletPhysicsObject.getJBulletPhysicsObject(object1);
+			JBulletPhysicsObject obj2 = JBulletPhysicsObject.getJBulletPhysicsObject(object2);
+			for (int j = 0; j < manifold.getNumContacts(); j++)
+			{	contactPoint = manifold.getContactPoint(j);
+				if (contactPoint.getDistance() < 0.0f)
+				{	//System.out.println("---- hit between " + obj1 + " and " + obj2);
+					break;
+				}
+			}
 		}
 	}
 
@@ -691,52 +817,6 @@ public class MyGame extends VariableFrameRateGame
     }
 	/* --------------------- */
 
-	@Override
-	public void update()
-	{
-		// update time info
-		lastFrameTime = currFrameTime;
-		currFrameTime = System.currentTimeMillis();
-		deltaTime = currFrameTime - lastFrameTime;
-		timeModifier = deltaTime / 15; // deltaTime made speed jump by like 15x, this fix that
-		elapsTime += deltaTime / 1000.0;
-		
-		// updates nearest satellite
-		nearest = getNearestSatellite();
-
-		// updates variable actions 
-		Disarm.updateObject(nearest);
-		MoveAction.updateModifier(timeModifier * sprintModifier);
-		TurnAction.updateModifier(timeModifier * sprintModifier);
-		PitchAction.updateModifier(timeModifier * sprintModifier);
-		sprintModifier = 1f; //reset sprint mod
-		
-		buildHUD();
-
-		// moving light with camera
-		cam = (engine.getRenderSystem().getViewport("MAIN").getCamera());
-		light5.setLocation(new Vector3f((cam.getLocation())));
-
-		// ####### DELETE LATER OR FIX OR ADAPT LOL
-		// Update altitude of dolphin to hug height map
-		Vector3f loc = avatar.getWorldLocation();
-		float terHeight = terr.getHeight(loc.x(), loc.z());
-		avatar.setLocalLocation(new Vector3f(loc.x(), terHeight, loc.z()));
-		
-		// -camera control-
-		orbitController.updateCameraPosition();
-		//overheadController.updateCameraPosition();
-		
-		// -input control-
-		im.update((float)deltaTime);
-
-		// -Network update protocol NUP-
-		processNetworking((float)deltaTime);
-
-		// -collision checking-
-		//collisionChecker();
-	}
-
 	public void buildHUD() {
 		// build HUD
 		int elapsTimeSec = Math.round((float)elapsTime);
@@ -766,5 +846,102 @@ public class MyGame extends VariableFrameRateGame
 		(engine.getHUDmanager()).setHUD1(dispStr1 + dispStr2, hud1Color, hud1Left + 15, 15);
 		//(engine.getHUDmanager()).setHUD2(dispStr3, hud2Color, hud2Left + 15, 15);
 
+	}
+
+	@Override // simple key listener for testing mostly
+	public void keyPressed(KeyEvent e) {
+		switch(e.getKeyCode()) {
+			case KeyEvent.VK_SPACE:
+				togglePhysics = !togglePhysics;
+				break;
+			case KeyEvent.VK_1:
+				showPhysics = !showPhysics;
+				// physics world visualization
+				if (showPhysics) { engine.enablePhysicsWorldRender(); } 
+				else { engine.disablePhysicsWorldRender(); }
+				break;
+			case KeyEvent.VK_2:
+				carS.stopAnimation();
+				carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+				break;
+		}
+		super.keyPressed(e);
+	}
+
+	@Override
+	public void update()
+	{
+		// update time info
+		lastFrameTime = currFrameTime;
+		currFrameTime = System.currentTimeMillis();
+		deltaTime = currFrameTime - lastFrameTime;
+		timeModifier = deltaTime / 15; // deltaTime made speed jump by like 15x, this fix that
+		elapsTime += deltaTime / 1000.0;
+		
+		// updates nearest satellite
+		nearest = getNearestSatellite();
+
+		// updates variable actions 
+		Disarm.updateObject(nearest);
+		MoveAction.updateModifier(timeModifier * sprintModifier);
+		TurnAction.updateModifier(timeModifier * sprintModifier);
+		PitchAction.updateModifier(timeModifier * sprintModifier);
+		sprintModifier = 1f; //reset sprint mod
+		
+		buildHUD();
+
+		// moving light with camera
+		cam = (engine.getRenderSystem().getViewport("MAIN").getCamera());
+		light5.setLocation(new Vector3f((cam.getLocation())));
+
+		// ####### DELETE LATER OR FIX OR ADAPT LOL
+		// Update altitude of dolphin to hug height map
+		//Vector3f loc = avatar.getWorldLocation();
+		//float terHeight = terr.getHeight(loc.x(), loc.z());
+		//avatar.setLocalLocation(new Vector3f(loc.x(), terHeight, loc.z()));
+		
+		// -camera control-
+		orbitController.updateCameraPosition();
+		//overheadController.updateCameraPosition();
+		
+		// Animations
+		carS.updateAnimation();
+		//carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+
+		// -input control-
+		im.update((float)deltaTime);
+
+		// -Network update protocol NUP-
+		processNetworking((float)deltaTime);
+
+		// Update sound
+		sound1.setLocation(tire1.getWorldLocation());
+		setEarParameters();
+
+		//System.out.println("sound1 loc: " +sound1.getLocation() + "ear loc: " + audioMgr.getEar().getLocation());
+
+		// Update physics
+		if(togglePhysics) {
+			AxisAngle4f aa = new AxisAngle4f();
+			Matrix4f mat = new Matrix4f();
+			Matrix4f mat2 = new Matrix4f().identity();
+			Matrix4f mat3 = new Matrix4f().identity();
+			checkForCollisions();
+			physicsEngine.update((float)deltaTime);
+			for(GameObject go:engine.getSceneGraph().getGameObjects()) {
+				if(go.getPhysicsObject() != null) {
+					mat.set(toFloatArray(go.getPhysicsObject().getTransform()));
+					mat2.set(3,0,mat.m30());
+					mat2.set(3,1,mat.m31());
+					mat2.set(3,2,mat.m32());
+					go.setLocalTranslation(mat2);
+
+					// set rotation
+					mat.getRotation(aa);
+					mat3.rotation(aa);
+					go.setLocalRotation(mat3);
+				}
+			}
+		}
 	}
 }
