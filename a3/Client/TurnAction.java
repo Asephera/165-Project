@@ -33,7 +33,7 @@ public class TurnAction extends AbstractInputAction
 
         av = game.getAvatar();
         car = game.getPhysCar();
-        rightVec = av.getWorldRightVector().mul(-speed * keyValue * modifier * 10);
+        rightVec = av.getWorldRightVector().mul(-speed * keyValue * modifier * 30);
         fwdVec = av.getWorldForwardVector().mul(3);
         car.applyForce(rightVec.x, rightVec.y, rightVec.z, fwdVec.x, fwdVec.y, fwdVec.z);
 

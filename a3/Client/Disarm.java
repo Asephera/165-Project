@@ -20,7 +20,7 @@ public class Disarm extends AbstractInputAction
     @Override
     public void performAction(float time, Event e) 
     {   System.out.println("Disarming!");
-        game.disarm(object);
+        //game.disarm(object);
     }
     
 }

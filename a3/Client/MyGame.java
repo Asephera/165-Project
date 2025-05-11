@@ -11,7 +11,7 @@
  * 
  * Incomplete:
  * -finish inputs (especially gamepad)
- * -orbit camera movements (in CameraOrbit3D.java)
+ * -car camera movements (in CameraOrbit3D.java)
  * -clean up code (remove all the empty imports lol, move the var declarations to the tippy top :> )
  */
 
@@ -43,12 +43,15 @@ import java.lang.Math;
 import java.net.InetAddress;
 import java.net.ProtocolException;
 import java.net.UnknownHostException;
+import java.util.Arrays;
+
 import jogamp.opengl.awt.VersionApplet;
 
 public class MyGame extends VariableFrameRateGame
 {	private InputManager im;
-	private GhostManager gm;
+	private static GhostManager gm;
 	private static Engine engine;
+	private static Camera mainCamera;
 
     // Functinoal Vars
     private boolean riding=true;
@@ -70,14 +73,15 @@ public class MyGame extends VariableFrameRateGame
 	// Object vars
 	private Car car;
 	private GameObject nearest, avatar, tree, terr, sphere, cube, tor, xLine, yLine, zLine, xLine2, yLine2, zLine2, pyr, floor;
-	private ObjShape carSXXXXXXXXXXXXXXX, treeS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS;
-	private TextureImage doltx, treeTx, ghostT, hills, grass, spheretx, cubtx, tortx, pyrtx, boomtx, planetx, spheretx2, cubtx2, tortx2, pyrtx2;
+	private GameObject carTires;
+	private ObjShape treeS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS, npcS;
+	private AnimatedShape carS, carTiresS;
+	private TextureImage doltx, treeTx, ghostT, hills, grass, spheretx, cubtx, tortx, pyrtx, boomtx, planetx, spheretx2, cubtx2, tortx2, pyrtx2, npcTx;
 	private Light light1, light2, light3, light4, light5;
 	Vector3f lightAbove = new Vector3f(0f,2f,0f);
 	Vector3f origin = new Vector3f(0,0,0);
 	private Vector3f avatarLoc;
 	private int fluffyClouds; // skyboxes
-	private AnimatedShape carS;
 
 	// Object vars 2 (will fix latr) (car things)
 	private GameObject frontDoor1, backDoor1, engine1, tire1, spoiler1;
@@ -110,7 +114,7 @@ public class MyGame extends VariableFrameRateGame
 
 	// Mouse movement variables
 	private boolean recentering;
-	private String viewType = "orbit";
+	private String viewType = "car";
 	private int centerX, centerY;
 	private float curX, curY, prevX, prevY;
 	private float sensitivity = 0.1f;
@@ -125,11 +129,13 @@ public class MyGame extends VariableFrameRateGame
 
 	// vars I need to toggle with buttons
 	private boolean togglePhysics = true;
-	private boolean showPhysics = false;
+	private boolean showPhysics = true;
 
 	// sound
 	private IAudioManager audioMgr;
-	private Sound sound1;
+	private Sound sound1, revSound, idleSound, backRevSound, backIdleSound, bgm;
+	private boolean stopRev, stopIdle, stopBackRev, stopBackIdle = false;
+	private double revNow, backRevNow = 0;
     
 	public MyGame(String serverAddress, int serverPort, String protocol) { 
 		super(); 
@@ -149,10 +155,12 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void loadShapes()
 	{	
-		carS = new AnimatedShape("Car Chassis.rkm", "Car Chassis.rks"); //new ImportedModel("Car Chassis Blockout.obj");
-		carS.loadAnimation("ACCEL", "accelerate.rka");
+		carS = new AnimatedShape("Car Chassis.rkm", "Car Chassis.rks");
+		carS.loadAnimation("ACCEL", "driveForward.rka");
+		carS.loadAnimation("DECEL", "driveBackward.rka");
+		npcS = new ImportedModel("Demon Ball thing lol.obj");
 		terrS = new TerrainPlane(1000); // pixels per axis
-		ghostS = new Sphere();
+		ghostS = new AnimatedShape("Car Chassis.rkm", "Car Chassis.rks");
 		xLineS = new Line(origin, new Vector3f(3,0,0));
 		yLineS = new Line(origin, new Vector3f(0,3,0));
 		zLineS = new Line(origin, new Vector3f(0,0,3));
@@ -181,6 +189,7 @@ public class MyGame extends VariableFrameRateGame
 		// my model textures
 		tireTx = new TextureImage("Tire Texture WIP.png");
 		treeTx = new TextureImage("Tree Texture Image.png");
+		npcTx = new TextureImage("best texure image ever.png");
 
 		planetx = new TextureImage("floor.jpg"); // https://www.pexels.com/photo/black-and-white-carbon-pattern-2092075/
 		hills = new TextureImage("Height Map WIP.png"); // custom greyscale shit
@@ -207,9 +216,9 @@ public class MyGame extends VariableFrameRateGame
         initialTranslation = (new Matrix4f()).translation(location);
         initialScale = (new Matrix4f()).scaling(scale);
 		initialRotation = (new Matrix4f()).identity()
-			.rotationX((float)java.lang.Math.toRadians(rotation.x()))
-			.rotationY((float)java.lang.Math.toRadians(rotation.y()))
-			.rotationZ((float)java.lang.Math.toRadians(rotation.z()));
+			.rotateX((float)java.lang.Math.toRadians(rotation.x()))
+			.rotateY((float)java.lang.Math.toRadians(rotation.y()))
+			.rotateZ((float)java.lang.Math.toRadians(rotation.z()));
         obj.setLocalTranslation(initialTranslation);
         obj.setLocalScale(initialScale);
 		obj.setLocalRotation(initialRotation);
@@ -222,12 +231,12 @@ public class MyGame extends VariableFrameRateGame
         // build cube
 		// ##### Abstracted for just some so far, rest are still grandfathered with old method
         cube = new GameObject(GameObject.root(), cubeS, cubtx);
-		build(cube, new Vector3f(6,0.5f,10), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0,0,0));
+		build(cube, new Vector3f(6,8.5f,10), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0,0,0));
 		satelliteArray[0] = cube; // load to array for future use
 
 		// build terrain object
 		terr = new GameObject(GameObject.root(), terrS, grass);
-		build(terr, new Vector3f(0f, 0f, 0f), new Vector3f(20.0f, 4.0f, 20.0f), new Vector3f(0f, 0f, 0f));
+		build(terr, new Vector3f(0f, 0f, 0f), new Vector3f(100.0f, 4.0f, 100.0f), new Vector3f(0f, 0f, 0f));
 		terr.setHeightMap(hills);
 
 		// build a tree
@@ -242,7 +251,7 @@ public class MyGame extends VariableFrameRateGame
 
         // build sphere
 		sphere = new GameObject(GameObject.root(), sphereS, spheretx);
-        initialTranslation = (new Matrix4f()).translation(2,0.5f,-5);
+        initialTranslation = (new Matrix4f()).translation(2,10.5f,-5);
         initialScale = (new Matrix4f()).scaling(0.5f);
         sphere.setLocalTranslation(initialTranslation);
         sphere.setLocalScale(initialScale);
@@ -250,7 +259,7 @@ public class MyGame extends VariableFrameRateGame
 
         // build tor
         tor = new GameObject(GameObject.root(), torS, tortx);
-        initialTranslation = (new Matrix4f()).translation(-8,0.5f,8);
+        initialTranslation = (new Matrix4f()).translation(-8,10.5f,8);
         initialScale = (new Matrix4f()).scaling(0.5f);
         tor.setLocalTranslation(initialTranslation);
         tor.setLocalScale(initialScale);
@@ -258,7 +267,7 @@ public class MyGame extends VariableFrameRateGame
 
 		// Manual object (build pyramid)
 		pyr = new GameObject(GameObject.root(), pyrS, pyrtx);
-		initialTranslation = (new Matrix4f()).translation(-4,0.5f,-11);
+		initialTranslation = (new Matrix4f()).translation(-4,10.5f,-11);
         initialScale = (new Matrix4f()).scaling(0.5f);
 		pyr.setLocalTranslation(initialTranslation);
         pyr.setLocalScale(initialScale);
@@ -271,23 +280,21 @@ public class MyGame extends VariableFrameRateGame
 		(xLine.getRenderStates()).setColor(new Vector3f(1f, 0f, 0f));
 		(yLine.getRenderStates()).setColor(new Vector3f(0f, 1f, 0f));
 		(zLine.getRenderStates()).setColor(new Vector3f(0f, 0f, 1f));
-
-		// add floor plane
-		floor = new GameObject(GameObject.root(), planeS, planetx);
-		initialTranslation = (new Matrix4f()).translation(0,0,0);
-        initialScale = (new Matrix4f()).scaling(worldSize);
-		floor.setLocalTranslation(initialTranslation);
-        floor.setLocalScale(initialScale);
 		
         //build dolphin / car / avatar you get the point (no you dont) 
         avatar = new GameObject(GameObject.root(), carS, treeTx);
-		initialTranslation = (new Matrix4f()).translation(0,3.5f,10);
-		initialScale = (new Matrix4f()).scaling(3.0f);
-		initialRotation = (new Matrix4f()).identity().rotationY(
-			(float)java.lang.Math.toRadians(180f));
-		avatar.setLocalTranslation(initialTranslation);
-		avatar.setLocalScale(initialScale);
-		avatar.setLocalRotation(initialRotation);
+		build(avatar, new Vector3f(22.6f,4f,17), new Vector3f(3f,3f,3f), new Vector3f(65, 0,0));
+		//initialTranslation = (new Matrix4f()).translation(20,3.5f,10);
+		//initialScale = (new Matrix4f()).scaling(3.0f);
+		//initialRotation = (new Matrix4f()).identity().rotationY((float)java.lang.Math.toRadians(180f));
+		//avatar.setLocalTranslation(initialTranslation);
+		//avatar.setLocalScale(initialScale);
+		//avatar.setLocalRotation(initialRotation);
+
+		//carTires = new GameObject(GameObject.root(), carTiresS);
+		//build(carTires, new Vector3f(22.6f,4f,17), new Vector3f(3f,3f,3f), new Vector3f(65, 0,0));
+		//initialScale = (new Matrix4f()).scaling(2f);
+		//carTires.setLocalScale(initialScale);
 
 		// add mini avatar X Y Z world axes (constructed with 'satellite parts')
 		xLine2 = new GameObject(avatar, xLineS);
@@ -322,18 +329,55 @@ public class MyGame extends VariableFrameRateGame
 	public void loadSounds() {
 		AudioResource resource1;
 		audioMgr = engine.getAudioManager();
+
+		
 		resource1 = audioMgr.createAudioResource("tire noises.wav", AudioResourceType.AUDIO_SAMPLE);
 		sound1 = new Sound(resource1, SoundType.SOUND_EFFECT, 100, true);
 		sound1.initialize(audioMgr);
 		sound1.setMaxDistance(20f);
 		sound1.setMinDistance(0.5f);
 		sound1.setRollOff(1f);
+
+		resource1 = audioMgr.createAudioResource("Car Rev.wav", AudioResourceType.AUDIO_SAMPLE);
+		revSound = new Sound(resource1, SoundType.SOUND_EFFECT, 100, true);
+		revSound.initialize(audioMgr);
+		revSound.setMaxDistance(20f);
+		revSound.setMinDistance(0.5f);
+		revSound.setRollOff(1f);
+
+		resource1 = audioMgr.createAudioResource("Car Idle.wav", AudioResourceType.AUDIO_SAMPLE);
+		idleSound = new Sound(resource1, SoundType.SOUND_EFFECT, 100, true);
+		idleSound.initialize(audioMgr);
+		idleSound.setMaxDistance(20f);
+		idleSound.setMinDistance(0.5f);
+		idleSound.setRollOff(1f);
+
+		resource1 = audioMgr.createAudioResource("Back Rev.wav", AudioResourceType.AUDIO_SAMPLE);
+		backRevSound = new Sound(resource1, SoundType.SOUND_EFFECT, 100, true);
+		backRevSound.initialize(audioMgr);
+		backRevSound.setMaxDistance(20f);
+		backRevSound.setMinDistance(0.5f);
+		backRevSound.setRollOff(1f);
+
+		resource1 = audioMgr.createAudioResource("Back Idle.wav", AudioResourceType.AUDIO_SAMPLE);
+		backIdleSound = new Sound(resource1, SoundType.SOUND_EFFECT, 100, true);
+		backIdleSound.initialize(audioMgr);
+		backIdleSound.setMaxDistance(20f);
+		backIdleSound.setMinDistance(0.5f);
+		backIdleSound.setRollOff(1f);
+
+		resource1 = audioMgr.createAudioResource("BGM.wav", AudioResourceType.AUDIO_STREAM);
+		bgm = new Sound(resource1, SoundType.SOUND_EFFECT, 100, true);
+		bgm.initialize(audioMgr);
+		bgm.setMaxDistance(20f);
+		bgm.setMinDistance(0.5f);
+		bgm.setRollOff(0f);
 	}
 
 	public void setEarParameters() {
 		Camera camera = (engine.getRenderSystem()).getViewport("MAIN").getCamera();
 		audioMgr.getEar().setLocation(avatar.getWorldLocation());
-		audioMgr.getEar().setOrientation(camera.getN(), new Vector3f(0f,1f,0f));
+		audioMgr.getEar().setOrientation(camera.getN(), camera.getU());
 	}
 
 	@Override // init lights
@@ -475,15 +519,9 @@ public class MyGame extends VariableFrameRateGame
 		prevX = centerX; // 'prevMouse' defines the initial
 		prevY = centerY; // mouse position
 		
-
-		/* ADD CURSOR
-		Image faceImage = new
-		ImageIcon("./assets/textures/face.gif").getImage();
-		Cursor faceCursor = Toolkit.getDefaultToolkit().
-		createCustomCursor(faceImage, new Point(0,0), "FaceCursor");
-		canvas = rs.getCanvas();
-		canvas.setCursor(faceCursor);
-		*/
+		Image faceImage = new ImageIcon("./assets/textures/Game Crosshair.png").getImage();
+		Cursor faceCursor = Toolkit.getDefaultToolkit().createCustomCursor(faceImage, new Point(0,0), "FaceCursor");
+		engine.getRenderSystem().getGLCanvas().setCursor(faceCursor);
 	}
 
 	private float[] toFloatArray(double[] arr) {
@@ -502,6 +540,12 @@ public class MyGame extends VariableFrameRateGame
 		return ret;
 	}
 
+	private void visualize4x3d(double[] x) {
+		System.out.println(" transform thing: "+ x[0] + " | " +  x[1] + " | " + x[2] + " | " + x[3]);
+		System.out.println(" transform thing: "+ x[4] + " | " +  x[5] + " | " + x[6] + " | " + x[7]);
+		System.out.println(" transform thing: "+ x[8] + " | " +  x[9] + " | " + x[10] + " | " + x[11]);
+	}
+
 	public void initializePhysics() {
 		// Gravity n physics system
 		float[] gravity = {0f, -9.8f, 0f};
@@ -512,22 +556,23 @@ public class MyGame extends VariableFrameRateGame
 		float up[] = {0, 1, 0};
 		double[] tempTransform;
 		float vals[] = new float[16];
-		float boxSize[] = {5, 4 , 14}; // car dimensions
+		float boxSize[] = {5, 2 , 14}; // car dimensions
 
-		Matrix4f translation = new Matrix4f(avatar.getLocalTranslation());
+		Matrix4f translation = new Matrix4f(avatar.getWorldTranslation().translate(0, 1.5f, 0.5f));
 		tempTransform = toDoubleArray(translation.get(vals));
 		carPO = (engine.getSceneGraph()).addPhysicsBox(4.0f, tempTransform, boxSize);
+		carPO.setTransform(tempTransform);
 		carPO.setBounciness(0.02f);
-		carPO.setFriction(0.1f);
+		carPO.setFriction(3f);
 		avatar.setPhysicsObject(carPO);
 
-		translation = new Matrix4f(tire1.getLocalTranslation());
+		translation = new Matrix4f(tire1.getWorldTranslation());
 		tempTransform = toDoubleArray(translation.get(vals));
 		tirePO = (engine.getSceneGraph()).addPhysicsCapsuleX(0.7f, tempTransform, 1.7f, 0f);
 		tirePO.setBounciness(0.8f);
 		tire1.setPhysicsObject(tirePO);
 
-		translation = new Matrix4f(terr.getLocalTranslation().translate(0,1,0));
+		translation = new Matrix4f(terr.getWorldTranslation().translate(0,3,0));
 		tempTransform = toDoubleArray(translation.get(vals));
 		terrPO = (engine.getSceneGraph()).addPhysicsStaticPlane(tempTransform, up, 0.0f);
 		terrPO.setBounciness(1.0f);
@@ -536,12 +581,18 @@ public class MyGame extends VariableFrameRateGame
 
 	public void initializeSound() {
 		sound1.setLocation(tire1.getWorldLocation());
+		revSound.setLocation(avatar.getWorldLocation());
+		idleSound.setLocation(avatar.getWorldLocation());
+		backIdleSound.setLocation(avatar.getWorldLocation());
+		backRevSound.setLocation(avatar.getWorldLocation());
+		bgm.setLocation(cam.getLocation());
 		setEarParameters();
-		sound1.play();
+		//sound1.play();
+		bgm.play();
 	}
 
 	@Override // init game
-	public void initializeGame()
+	public void initializeGame()	
 	{	maxDistance = 5;
 		lastFrameTime = currFrameTime = System.currentTimeMillis();
 		elapsTime = 0.0;
@@ -549,8 +600,8 @@ public class MyGame extends VariableFrameRateGame
 	
 		// ------------- initialize camera ------------------
 		createViewports();
-		Camera c = engine.getRenderSystem().getViewport("MAIN").getCamera();
-		orbitController = new CameraOrbit3D(c, avatar, engine, true);
+		cam = engine.getRenderSystem().getViewport("MAIN").getCamera();
+		orbitController = new CameraOrbit3D(cam, avatar, engine, true);
 		// overhead cam
 		//Camera o = engine.getRenderSystem().getViewport("overhead").getCamera();
 		//overheadController = new CameraOrbit3D(o, avatar, engine, false);
@@ -567,8 +618,8 @@ public class MyGame extends VariableFrameRateGame
 		(engine.getSceneGraph()).addNodeController(shiCon);
 		shiCon.enable();
 
-		System.out.println("animation: " + carS.getAnimation("ACCEL"));
-		carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+		//System.out.println("animation: " + carS.getAnimation("ACCEL"));
+		//carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
 
 		// ----- Networking -----
 		System.out.println("initializing networking..");
@@ -625,65 +676,19 @@ public class MyGame extends VariableFrameRateGame
 		return (float)(Math.sqrt(Math.pow((vec2.x() - vec1.x()), 2) + Math.pow((vec2.y() - vec1.y()), 2) + Math.pow((vec2.z() - vec1.z()), 2)));
 	}
 
-	// returns reference to nearest satellite registered in satelliteArray[]
-	public GameObject getNearestSatellite() 
-	{	avatarLoc = avatar.getWorldLocation();
-		nearest = satelliteArray[0];
-		for(i = 0; i < satelliteArray.length; i++)
-		{	if(getDistance(avatarLoc, nearest.getWorldLocation()) > getDistance(avatarLoc, satelliteArray[i].getWorldLocation())) { nearest = satelliteArray[i]; } }
-		return nearest;
-	}
-
 	// returns avatar object
 	public GameObject getAvatar() { return avatar; }
-	public AnimatedShape getTires() { return carS; }
+	public AnimatedShape getTires() { return null; }
 	public PhysicsObject getPhysCar() { return carPO; }
+	public ObjShape getNPCShape() { return npcS; }
+	public TextureImage getNPCtexture() { return npcTx; }
+	public String getViewType() { return viewType; } 
 
 	// returns Car object
 	public Car getCar() { return car; }
 
 	// sets sprint modifier
 	public void setSprint(float e) { sprintModifier = e; }
-
-	// returns true if passed object is close enough to cam or avatar
-	public boolean closeEnough(GameObject x) {
-		//cam = (engine.getRenderSystem().getViewport("MAIN").getCamera());
-		if((3 > getDistance(avatar.getWorldLocation(), x.getWorldLocation()))) { 
-			return true;
-		}
-		return false;
-	}
-
-	// returns index to satellite Array if satellite is armed, -1 if disarmed, -2 if exploded.
-	public int checkSatelliteStatus(GameObject object) {
-		index = -1;
-
-		for(int k = 0; k < satelliteArray.length; k++) {
-			if(satelliteArray[k] == object) { index = k; }
-		}
-		if(index != -1) { 
-			if(!disarm[index] && !exploded[index]) { return index; }
-			else if(exploded[index]) { return -2; }
-		}
-		//System.out.println("no");
-		return -1; // satellite isnt armed
-	}
-
-	// disarm nearest satellite if in range
-	public void disarm(GameObject object) {
-		int j = -1;
-		j = checkSatelliteStatus(object);
-		if(j >= 0 && closeEnough(object)) { 
-			disarm[j] = true; 
-			score++; 
-			if(partsArray[j] != null) { partsArray[j].getRenderStates().enableRendering(); }
-			if( j % 2 == 0)
-				{ shiCon.addTarget(object); }
-			else
-				{ roCon.addTarget(object); }
-		}
-		win = checkIfWin();
-	}
 
 	// if all satellites are disarmed, returns true
 	public boolean checkIfWin() {
@@ -698,29 +703,6 @@ public class MyGame extends VariableFrameRateGame
 	public boolean furtherThan(int x, GameObject object) {
 		if(x > getDistance(object.getWorldLocation(), avatar.getLocalLocation())) { return true; }
 		return false;
-	}
-
-	// tracks distance from avatar to each satellite and updates texture / shape accordingly
-	public void satelliteCollision()
-	{	avatarLoc = avatar.getLocalLocation();
-		
-		// if x sattelite is <4 or <2 sets texture appropriately
-		for(i = 0; i < satelliteArray.length; i++) {
-			if(exploded[i]) 
-				{ lose = true; continue; } // if a satellite is ever blown up, its texture wont change anymore, also lose = true
-			if(checkSatelliteStatus(satelliteArray[i]) == -1) 
-				{ satelliteArray[i].setTextureImage(textureArray[i][0]); continue; } // if disarmed, stays the normal texture
-			
-			satelliteArray[i].setTextureImage(
-				(furtherThan(3, satelliteArray[i])) ? 
-				(furtherThan(2, satelliteArray[i])) && !disarm[i] ? 
-				boomtx : textureArray[i][1] : textureArray[i][0]); // if dist <2 set texture to boom. <3 set texture to second texture. Otherwise normal texture
-			
-				// if dist <2 set shape to square to better visualize boom
-			if(2 > getDistance(satelliteArray[i].getLocalLocation(), avatarLoc) && !disarm[i]) 
-			{ 	satelliteArray[i].setShape(cubeS); 
-				exploded[i] = true; }
-		}
 	}
 
 	// physics world collision checking
@@ -776,11 +758,11 @@ public class MyGame extends VariableFrameRateGame
 			float delX = prevX - curX;
 			float delY = prevY - curY;
 
-			if(viewType == "fpv") {
-				//yaw(delX);
-				//pitch(delY);
+			if(viewType == "player") {
+				cam.yaw(delX);
+				//cam.pitch(delY);
 			}
-			else if(viewType == "orbit") {
+			else if(viewType == "car") {
 				orbitController.updateAzimuth(delX*sensitivity);
 				orbitController.updateElevation(-delY*sensitivity);
 			}
@@ -802,11 +784,11 @@ public class MyGame extends VariableFrameRateGame
 			float delX = prevX - curX;
 			float delY = prevY - curY;
 
-			if(viewType == "fpv") {
-				//yaw(delX);
-				//pitch(delY);
+			if(viewType == "player") {
+				cam.yaw(delX);
+				//cam.pitch(delY);
 			}
-			else if(viewType == "orbit") {
+			else if(viewType == "car") {
 				orbitController.updateAzimuth(delX*sensitivity);
 				orbitController.updateElevation(-delY*sensitivity);
 			}
@@ -824,12 +806,6 @@ public class MyGame extends VariableFrameRateGame
 		String counterStr = Integer.toString(score);
 		String closeEnough = "";
 		String disarmed = "";
-		
-		// updates HUD values for active events
-		if(closeEnough(nearest)) { closeEnough = "close enough!"; }
-		else { closeEnough = "too far.."; }
-		if(checkSatelliteStatus(nearest) == -1 && closeEnough == "close enough!") { disarmed = "disarmed! "; }
-		else { disarmed = ""; }
 
 		// set HUD
 		String dispStr1 = "Time = " + elapsTimeStr + " | Score = " + counterStr + " | " + closeEnough + " | " + disarmed;
@@ -848,6 +824,31 @@ public class MyGame extends VariableFrameRateGame
 
 	}
 
+	public void mountHandler() {
+		if(viewType == "player") { viewType = "car"; }
+		else { 
+			viewType = "player"; 
+			Vector3f e = avatar.getWorldRightVector();
+			cam.setLocation(avatar.getWorldLocation().add(-e.x, 2, -e.z));
+		}
+	}
+
+	private void handlesoundStopping() {
+		if(revNow != 0) {
+			//System.out.println("revNow: " + revNow + "\nelapsTime " + elapsTime);
+			if((revNow+3.4) < elapsTime) {
+				revSound.stop();
+				revNow = 0;
+			}
+		}
+		if(backRevNow != 0) {
+			if((backRevNow+1.44) < elapsTime) {
+				backRevSound.stop();
+				backRevNow = 0;
+			}
+		}
+	}
+
 	@Override // simple key listener for testing mostly
 	public void keyPressed(KeyEvent e) {
 		switch(e.getKeyCode()) {
@@ -861,8 +862,60 @@ public class MyGame extends VariableFrameRateGame
 				else { engine.disablePhysicsWorldRender(); }
 				break;
 			case KeyEvent.VK_2:
-				carS.stopAnimation();
-				carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+				break;
+			case KeyEvent.VK_3:
+				mountHandler();
+				break;
+			case KeyEvent.VK_W:
+				if(!stopRev) {
+					revSound.play();
+					carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					revNow = elapsTime;
+					stopRev = true;
+				}
+				else if(revNow == 0 && !stopIdle) {
+					System.out.println("start");
+					idleSound.play();
+					carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					stopIdle = true;
+				}
+				break;
+			case KeyEvent.VK_S:
+				if(!stopBackRev) {
+					backRevSound.play();
+					carS.playAnimation("DECEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					backRevNow = elapsTime;
+					stopBackRev = true;
+				}
+				else if(backRevNow == 0 && !stopBackIdle) {
+					System.out.println("start");
+					backIdleSound.play();
+					carS.playAnimation("DECEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					stopBackIdle = true;
+				}
+				break;
+		}
+		super.keyPressed(e);
+	}
+
+	@Override
+	public void keyReleased(KeyEvent e) {
+		switch(e.getKeyCode()) {
+			case KeyEvent.VK_W:
+				if(stopIdle) {
+					System.out.println("stop");
+					idleSound.stop();
+					carS.stopAnimation();
+					stopIdle = false;
+				}
+				break;
+			case KeyEvent.VK_S:
+				if(stopBackIdle) {
+					System.out.println("stop");
+					backIdleSound.stop();
+					carS.stopAnimation();
+					stopBackIdle = false;
+				}
 				break;
 		}
 		super.keyPressed(e);
@@ -877,9 +930,6 @@ public class MyGame extends VariableFrameRateGame
 		deltaTime = currFrameTime - lastFrameTime;
 		timeModifier = deltaTime / 15; // deltaTime made speed jump by like 15x, this fix that
 		elapsTime += deltaTime / 1000.0;
-		
-		// updates nearest satellite
-		nearest = getNearestSatellite();
 
 		// updates variable actions 
 		Disarm.updateObject(nearest);
@@ -901,10 +951,13 @@ public class MyGame extends VariableFrameRateGame
 		//avatar.setLocalLocation(new Vector3f(loc.x(), terHeight, loc.z()));
 		
 		// -camera control-
-		orbitController.updateCameraPosition();
+		if(viewType == "car") { orbitController.updateCameraPosition(); }
+		
 		//overheadController.updateCameraPosition();
 		
 		// Animations
+		//carTiresS.updateAnimation();
+		//carTiresS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
 		carS.updateAnimation();
 		//carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
 
@@ -916,24 +969,41 @@ public class MyGame extends VariableFrameRateGame
 
 		// Update sound
 		sound1.setLocation(tire1.getWorldLocation());
+		revSound.setLocation(avatar.getWorldLocation());
+		idleSound.setLocation(avatar.getWorldLocation());
+		backRevSound.setLocation(avatar.getWorldLocation());
+		backIdleSound.setLocation(avatar.getWorldLocation());
+		bgm.setLocation(cam.getLocation());
 		setEarParameters();
+		handlesoundStopping();
 
 		//System.out.println("sound1 loc: " +sound1.getLocation() + "ear loc: " + audioMgr.getEar().getLocation());
 
+		// tie wheels to car
+		//      carTires.setLocalLocation(avatar.getWorldLocation().add(2.6f,0.5f,7)); // thank you rage animation exporter
+		//      carTires.setLocalLocation(avatar.getWorldLocation());
+		//carTires.setLocalRotation(avatar.getWorldRotation().rotateX((float)java.lang.Math.toRadians(65f)));
+		//carTires.setLocalLocation(avatar.getWorldLocation().add(2.6f,0.5f,7)); // thank you rage animation exporter
+
 		// Update physics
 		if(togglePhysics) {
+			physicsEngine.update((float)deltaTime);
 			AxisAngle4f aa = new AxisAngle4f();
 			Matrix4f mat = new Matrix4f();
 			Matrix4f mat2 = new Matrix4f().identity();
 			Matrix4f mat3 = new Matrix4f().identity();
+			Matrix4d mat4 = new Matrix4d();
 			checkForCollisions();
 			physicsEngine.update((float)deltaTime);
 			for(GameObject go:engine.getSceneGraph().getGameObjects()) {
 				if(go.getPhysicsObject() != null) {
+					// set translation
 					mat.set(toFloatArray(go.getPhysicsObject().getTransform()));
 					mat2.set(3,0,mat.m30());
 					mat2.set(3,1,mat.m31());
 					mat2.set(3,2,mat.m32());
+					//System.out.println("po tmat:\n" + mat);
+					//System.out.println("go tmat:\n" + mat2);
 					go.setLocalTranslation(mat2);
 
 					// set rotation

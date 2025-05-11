@@ -15,6 +15,7 @@ public class ProtocolClient extends GameConnectionClient {
     private MyGame game;
     private GhostManager ghostManager;
     private UUID id;
+	private GhostNPC ghostNPC;
 
     public ProtocolClient(InetAddress remoteAddr, int remotePort, ProtocolType protocolType, MyGame game) throws IOException {
         super(remoteAddr, remotePort, protocolType);
@@ -28,7 +29,7 @@ public class ProtocolClient extends GameConnectionClient {
     @Override
     protected void processPacket(Object message) {
         String strMessage = (String)message;
-        System.out.println("message revievec -->" + strMessage);
+        System.out.println("message recieved -->" + strMessage);
         String[] messageTokens = strMessage.split(",");
 
         // Game specific protocol to handle the message
@@ -119,8 +120,50 @@ public class ProtocolClient extends GameConnectionClient {
 				
 				ghostManager.updateGhostAvatar(ghostID, null, angle);
             }
+
+			// handle ghost create message
+			if (messageTokens[0].compareTo("createNPC") == 0) {				
+				// Parse out the position
+				Vector3f ghostPosition = new Vector3f(
+					Float.parseFloat(messageTokens[1]),
+					Float.parseFloat(messageTokens[2]),
+					Float.parseFloat(messageTokens[3]));
+				try { createGhostNPC(ghostPosition); }	
+				catch (IOException e) {	System.out.println("error creating ghost npc"); }
+            }
+
+			if (messageTokens[0].equals("npcinfo")) {				
+				// Parse out the position
+				Vector3f ghostPosition = new Vector3f(
+					Float.parseFloat(messageTokens[1]),
+					Float.parseFloat(messageTokens[2]),
+					Float.parseFloat(messageTokens[3]));
+				double gsize = Double.parseDouble(messageTokens[4]);
+				updateGhostNPC(ghostPosition, gsize);
+				
+            }
         }
     }
+
+	private void createGhostNPC(Vector3f position) throws IOException {
+		if(ghostNPC == null) {
+			ghostNPC = new GhostNPC(0, game.getNPCShape(), game.getNPCtexture(), position);
+		}
+	}
+
+	private void updateGhostNPC(Vector3f position, double gsize) {
+		boolean gs;
+		if(ghostNPC == null) {
+			try { createGhostNPC(position); 
+			} catch (IOException e) { System.out.println("error creating NPC"); }
+		}
+		ghostNPC.setPosition(position);
+		
+		// for size changes
+		//if(gsize == 1.0) gs = false; 
+		//else gs = true;
+		//ghostNPC.setSize(gs);
+	}
 
     // The initial message from the game client requesting to join the 
 	// server. localId is a unique identifier for the client. Recommend 

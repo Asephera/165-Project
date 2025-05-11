@@ -7,10 +7,12 @@ import java.util.UUID;
 import tage.networking.server.GameConnectionServer;
 import tage.networking.server.IClientInfo;
 
-public class GameServerUDP extends GameConnectionServer<UUID> 
-{
-	public GameServerUDP(int localPort) throws IOException 
-	{	super(localPort, ProtocolType.UDP);
+public class GameServerUDP extends GameConnectionServer<UUID> {	
+	NPCcontroller npcCtrl;
+
+	public GameServerUDP(int localPort, NPCcontroller npc) throws IOException {	
+		super(localPort, ProtocolType.UDP);
+		npcCtrl = npc;
 	}
 
 	@Override
@@ -77,7 +79,27 @@ public class GameServerUDP extends GameConnectionServer<UUID>
 				String yawAngle = messageTokens[2];
 				sendYawMessage(clientID, yawAngle);
 			}
+			
+			// Case where server receives request for NPCs
+			// Received Message Format: (needNPC,id)
+			if(messageTokens[0].compareTo("needNPC") == 0) { 	
+				System.out.println("server got a needNPC message");
+				UUID clientID = UUID.fromString(messageTokens[1]);
+				sendNPCStart(clientID);
+			}
+
+			// Case where server receives notice that an av is close to the npc
+			// Received Message Format: (isnear,id)
+			if(messageTokens[0].compareTo("isnear") == 0) { 
+				System.out.println("server got an npc close to av message");
+				UUID clientID = UUID.fromString(messageTokens[1]);
+				handleNearTiming(clientID);
+			}
+			
+
 }	}
+
+	public void handleNearTiming(UUID clientID) { npcCtrl.setNearFlag(true); }
 
 	// Informs the client who just requested to join the server if their if their 
 	// request was able to be granted. 
@@ -161,6 +183,38 @@ public class GameServerUDP extends GameConnectionServer<UUID>
 		catch (IOException e) 
 		{	e.printStackTrace();
 	}	}
+
+	public void sendCheckForAvatarNear() {
+		try { 
+			String message = new String("isnr");
+			message += "," + (npcCtrl.getNPC()).getX();
+			message += "," + (npcCtrl.getNPC()).getY();
+			message += "," + (npcCtrl.getNPC()).getZ();
+			message += "," + (npcCtrl.getCriteria());
+			sendPacketToAll(message);
+		} catch (IOException e) { System.out.println("couldnt send avNear check"); e.printStackTrace(); }
+	}
+ 
+	public void sendNPCInfo() {
+		try {
+			String message = new String("npcinfo");
+			message += "," + (npcCtrl.getNPC()).getX();
+			message += "," + (npcCtrl.getNPC()).getY();
+			message += "," + (npcCtrl.getNPC()).getZ();
+			message += "," + (npcCtrl.getNPC()).getSize(); // maybe change, maybe omit, this is for the boilerplate size change code
+			//sendPacketToAll(message);
+		} catch (RuntimeException e) { System.out.println("couldnt send npc info"); e.printStackTrace(); }
+	}            // CHANGE TO IOException when trying to debug
+
+	public void sendNPCStart(UUID clientID) {
+		try {
+			String message = new String("newNPC");
+			message += "," + (npcCtrl.getNPC()).getX();
+			message += "," + (npcCtrl.getNPC()).getY();
+			message += "," + (npcCtrl.getNPC()).getZ();
+			sendPacket(message, clientID);
+		} catch (IOException e) { System.out.println("couldnt send npc start"); e.printStackTrace(); }
+	}
 	
 	// Informs a client that a remote client's avatar has changed position. x, y, and z represent 
 	// the new position of the remote avatar. This message is meant to be forwarded to all clients
@@ -179,7 +233,22 @@ public class GameServerUDP extends GameConnectionServer<UUID>
 		{	e.printStackTrace();
 	}	}
 
-	//
+	
+	// send NPC message
+	// yells the coordinates of npc location to client
+	public void sendCreateNPCmsg(UUID clientID, String[] position) {
+		try {
+			System.out.println("server telling clients about an NPC");
+			String message = new String("createNPC," + clientID.toString());
+			message += "," + position[0];
+			message += "," + position[1];
+			message += "," + position[2];
+			forwardPacketToAll(message, clientID);
+		} catch (IOException e) { e.printStackTrace(); }
+	}
+
+
+	// send yaw message
 
 	public void sendYawMessage(UUID clientID, String angle)
 	{	try 
