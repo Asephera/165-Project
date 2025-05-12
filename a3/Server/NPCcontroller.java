@@ -35,15 +35,17 @@ public class NPCcontroller {
         while (true) {
             long currentTime = System.nanoTime();
             float elapsedThinkMilliSecs = (currentTime-lastThinkUpdateTime)/(1000000.0f);
-            float elapsedTickMilliSecs = (currentTime-lastThinkUpdateTime)/(1000000.0f);
+            float elapsedTickMilliSecs = (currentTime-lastTickUpdateTIme)/(1000000.0f);
 
             if(elapsedTickMilliSecs >= 25.0f) {
+                System.out.println("Tick!");
                 lastTickUpdateTIme = currentTime;
                 npc.updateLocation();
                 server.sendNPCInfo();
             }
 
             if(elapsedThinkMilliSecs >= 250.0f) {
+                System.out.println("think!");
                 lastThinkUpdateTime = currentTime;
                 bt.update(elapsedThinkMilliSecs);
             }
@@ -53,9 +55,9 @@ public class NPCcontroller {
 
     public void setupBehaviorTree() {
         bt.insertAtRoot(new BTSequence(10));
-        bt.insertAtRoot(new BTSequence(10));
+        bt.insertAtRoot(new BTSequence(20));
         bt.insert(10, new OneSecPassed(this,npc,false));
-        //bt.insert(10, new );
+        bt.insert(10, new test(server, this, npc, false));
         bt.insert(20, new AvatarNear(server, this, npc, false));
         //bt.insert(20, new );
     }
@@ -63,5 +65,5 @@ public class NPCcontroller {
     public void setNearFlag(boolean x) { nearFlag = x; }
     public boolean getNearFlag() { return nearFlag; }
     public NPC getNPC() { return npc; }
-    public float getCriteria() { return 0.5f; }
+    public float getCriteria() { return 5f; }
 }

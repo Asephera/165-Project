@@ -90,7 +90,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 
 			// Case where server receives notice that an av is close to the npc
 			// Received Message Format: (isnear,id)
-			if(messageTokens[0].compareTo("isnear") == 0) { 
+			if(messageTokens[0].compareTo("isNear") == 0) { 
 				System.out.println("server got an npc close to av message");
 				UUID clientID = UUID.fromString(messageTokens[1]);
 				handleNearTiming(clientID);
@@ -109,10 +109,8 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	{	try 
 		{	System.out.println("trying to confirm join");
 			String message = new String("join,");
-			if(success)
-				message += "success";
-			else
-				message += "failure";
+			if(success) { message += "success"; System.out.println("Success!"); }
+			else { message += "failure"; System.out.println("Fail!");}
 			sendPacket(message, clientID);
 		} 
 		catch (IOException e) 
@@ -202,13 +200,14 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			message += "," + (npcCtrl.getNPC()).getY();
 			message += "," + (npcCtrl.getNPC()).getZ();
 			message += "," + (npcCtrl.getNPC()).getSize(); // maybe change, maybe omit, this is for the boilerplate size change code
-			//sendPacketToAll(message);
-		} catch (RuntimeException e) { System.out.println("couldnt send npc info"); e.printStackTrace(); }
+			sendPacketToAll(message);
+		} catch (IOException e) { System.out.println("couldnt send npc info"); e.printStackTrace(); }
 	}            // CHANGE TO IOException when trying to debug
 
 	public void sendNPCStart(UUID clientID) {
 		try {
-			String message = new String("newNPC");
+			System.out.println("sending NPC START");
+			String message = new String("createNPC");
 			message += "," + (npcCtrl.getNPC()).getX();
 			message += "," + (npcCtrl.getNPC()).getY();
 			message += "," + (npcCtrl.getNPC()).getZ();

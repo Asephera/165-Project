@@ -29,7 +29,7 @@ public class ProtocolClient extends GameConnectionClient {
     @Override
     protected void processPacket(Object message) {
         String strMessage = (String)message;
-        System.out.println("message recieved -->" + strMessage);
+        //System.out.println("message recieved -->" + strMessage);
         String[] messageTokens = strMessage.split(",");
 
         // Game specific protocol to handle the message
@@ -37,16 +37,23 @@ public class ProtocolClient extends GameConnectionClient {
 		{
 			// Handle JOIN message
 			// Format: (join,success) or (join,failure)
-			if(messageTokens[0].compareTo("join") == 0)
-			{	if(messageTokens[1].compareTo("success") == 0)
-				{	System.out.println("join success confirmed");
+			if(messageTokens[0].compareTo("join") == 0) {	
+				if(messageTokens[1].compareTo("success") == 0) {	
+					System.out.println("join success confirmed");
 					game.setIsConnected(true);
 					sendCreateMessage(game.getPlayerPosition());
+
+					try {
+						sendPacket("needNPC," + id.toString());
+						System.out.println("Requested NPC from server");
+					} catch (IOException e) { e.printStackTrace(); }
 				}
-				if(messageTokens[1].compareTo("failure") == 0)
-				{	System.out.println("join failure confirmed");
+
+				if(messageTokens[1].compareTo("failure") == 0) {	
+					System.out.println("join failure confirmed");
 					game.setIsConnected(false);
-			}	}
+				}	
+			}
 			
 			// Handle BYE message
 			// Format: (bye,remoteId)
@@ -124,6 +131,7 @@ public class ProtocolClient extends GameConnectionClient {
 			// handle ghost create message
 			if (messageTokens[0].compareTo("createNPC") == 0) {				
 				// Parse out the position
+				System.out.println("client recieved createNPC message!");
 				Vector3f ghostPosition = new Vector3f(
 					Float.parseFloat(messageTokens[1]),
 					Float.parseFloat(messageTokens[2]),
@@ -134,6 +142,7 @@ public class ProtocolClient extends GameConnectionClient {
 
 			if (messageTokens[0].equals("npcinfo")) {				
 				// Parse out the position
+				System.out.println("client recieved npcinfo message!");
 				Vector3f ghostPosition = new Vector3f(
 					Float.parseFloat(messageTokens[1]),
 					Float.parseFloat(messageTokens[2]),
@@ -142,6 +151,24 @@ public class ProtocolClient extends GameConnectionClient {
 				updateGhostNPC(ghostPosition, gsize);
 				
             }
+
+			if(messageTokens[0].compareTo("isnr") == 0) { 
+				System.out.println("recieved isnr request");
+				Vector3f npcPosition = new Vector3f(
+					Float.parseFloat(messageTokens[1]),
+					Float.parseFloat(messageTokens[2]),
+					Float.parseFloat(messageTokens[3]));
+				double criteria = Double.parseDouble(messageTokens[4]);
+
+				Vector3f playerPos = game.getPlayerPosition();
+				double distance = game.getDistance(npcPosition, playerPos);
+
+				if(distance < criteria) {
+					System.out.println("npc close");
+					sendNearReply();
+				}
+				else { System.out.println("npc far :("); }
+            } 
         }
     }
 
@@ -249,4 +276,11 @@ public class ProtocolClient extends GameConnectionClient {
 		} catch (IOException e) 
 		{	e.printStackTrace();
 	}	}
+
+	public void sendNearReply() {
+		try {	
+			String message = new String("isNear," + id.toString());
+			sendPacket(message);
+		} catch (IOException e) { e.printStackTrace(); }
+	}
 }

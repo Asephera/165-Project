@@ -26,7 +26,7 @@ public class NPC {
     // moves back and forth
     public void updateLocation() {
         if(locationX > 10) dir=-0.1;
-        if(locationX < 10) dir=0.1;
+        if(locationX < -10) dir=0.1;
         locationX = locationX + dir;
     }
 }

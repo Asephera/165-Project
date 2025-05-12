@@ -19,6 +19,7 @@ package a3.Client;
 
 // Tage
 import tage.*;
+import tage.Light.LightType;
 import tage.audio.*;
 import tage.shapes.*;
 import tage.nodeControllers.*;
@@ -49,6 +50,7 @@ import jogamp.opengl.awt.VersionApplet;
 
 public class MyGame extends VariableFrameRateGame
 {	private InputManager im;
+	private MouseWheelListener ml;
 	private static GhostManager gm;
 	private static Engine engine;
 	private static Camera mainCamera;
@@ -72,11 +74,11 @@ public class MyGame extends VariableFrameRateGame
 
 	// Object vars
 	private Car car;
-	private GameObject nearest, avatar, tree, terr, sphere, cube, tor, xLine, yLine, zLine, xLine2, yLine2, zLine2, pyr, floor;
+	private GameObject nearest, avatar, tree, terr, terr2, terr3, terr4, terr5, sphere, cube, tor, xLine, yLine, zLine, xLine2, yLine2, zLine2, pyr, floor;
 	private GameObject carTires;
-	private ObjShape treeS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS, npcS;
-	private AnimatedShape carS, carTiresS;
-	private TextureImage doltx, treeTx, ghostT, hills, grass, spheretx, cubtx, tortx, pyrtx, boomtx, planetx, spheretx2, cubtx2, tortx2, pyrtx2, npcTx;
+	private ObjShape treeS, avatarS, terrS, ghostS, sphereS ,cubeS, torS, xLineS, yLineS, zLineS, pyrS, planeS, npcS;
+	private AnimatedShape carS, carTiresS, treeAS;
+	private TextureImage doltx, treeTx, carTx, ghostT, smallHills, cornerHill, desert, grass, spheretx, cubtx, tortx, pyrtx, boomtx, planetx, spheretx2, cubtx2, tortx2, pyrtx2, npcTx;
 	private Light light1, light2, light3, light4, light5;
 	Vector3f lightAbove = new Vector3f(0f,2f,0f);
 	Vector3f origin = new Vector3f(0,0,0);
@@ -134,8 +136,10 @@ public class MyGame extends VariableFrameRateGame
 	// sound
 	private IAudioManager audioMgr;
 	private Sound sound1, revSound, idleSound, backRevSound, backIdleSound, bgm;
-	private boolean stopRev, stopIdle, stopBackRev, stopBackIdle = false;
+	private boolean stopRev, stopIdle, stopBackRev, stopBackIdle, treeDance = false;
 	private double revNow, backRevNow = 0;
+
+	// extra vars
     
 	public MyGame(String serverAddress, int serverPort, String protocol) { 
 		super(); 
@@ -155,9 +159,10 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void loadShapes()
 	{	
-		carS = new AnimatedShape("Car Chassis.rkm", "Car Chassis.rks");
-		carS.loadAnimation("ACCEL", "driveForward.rka");
-		carS.loadAnimation("DECEL", "driveBackward.rka");
+		avatarS = new ImportedModel("Car Chassis.obj");
+		//carS = new AnimatedShape("Car Chassis.rkm", "Car Chassis.rks");
+		//carS.loadAnimation("ACCEL", "driveForward.rka");
+		//carS.loadAnimation("DECEL", "driveBackward.rka");
 		npcS = new ImportedModel("Demon Ball thing lol.obj");
 		terrS = new TerrainPlane(1000); // pixels per axis
 		ghostS = new AnimatedShape("Car Chassis.rkm", "Car Chassis.rks");
@@ -169,31 +174,39 @@ public class MyGame extends VariableFrameRateGame
 		torS = new Torus();
 		pyrS = new Pyramid();
 		planeS = new Plane();
-		treeS = new ImportedModel("Slender Silhouette Sweetgum Tree.mtl.obj"); // I made these
+		//treeS = new ImportedModel("Slender Silhouette Sweetgum Tree.mtl.obj"); // I made these
+		treeAS = new AnimatedShape("Slender Silhouette Sweetgum Tree.rkm", "Slender Silhouette Sweetgum Tree.rks");
+		treeAS.loadAnimation("DANCE", "jiggle.rka");
 		tireS = new ImportedModel("Tire.obj"); // I made these
+
+		System.out.println("ANIMATION: " + treeAS.getAnimation("DANCE") + "\nbone #: " + treeAS.getBoneCount());
+		
 	}
 
 	@Override // initializes texture vars
 	public void loadTextures()
 	{	
-		doltx = new TextureImage("Dolphin_HighPolyUV.jpg");
-		cubtx = new TextureImage("brick.jpg"); // texture obtained from pexels.com, source: Pixabay, copyright free
-		cubtx2 = new TextureImage("rocc.jpg"); // texture obtained from pexels.com, source: Life Of Pix, copyright free
-		spheretx = new TextureImage("LilyWater.png"); // custom texture
-        spheretx2 = cubtx2;
-		tortx = new TextureImage("goofySunset.png"); // custom texture
-		tortx2 = cubtx2;
+		cubtx = new TextureImage("brick1.jpg"); // texture obtained from pexels.com, source: Pixabay, copyright free
+		//cubtx2 = new TextureImage("rocc.jpg"); // texture obtained from pexels.com, source: Life Of Pix, copyright free
+		//spheretx = new TextureImage("LilyWater.png"); // custom texture
+        //spheretx2 = cubtx2;
+		//tortx = new TextureImage("goofySunset.png"); // custom texture
+		//tortx2 = cubtx2;
 		pyrtx = cubtx; //copy over the bricks
-		pyrtx2 = cubtx2;
+		//pyrtx2 = cubtx2;
 
 		// my model textures
 		tireTx = new TextureImage("Tire Texture WIP.png");
 		treeTx = new TextureImage("Tree Texture Image.png");
 		npcTx = new TextureImage("best texure image ever.png");
 
-		planetx = new TextureImage("floor.jpg"); // https://www.pexels.com/photo/black-and-white-carbon-pattern-2092075/
-		hills = new TextureImage("Height Map WIP.png"); // custom greyscale shit
+		//planetx = new TextureImage("floor.jpg"); // https://www.pexels.com/photo/black-and-white-carbon-pattern-2092075/
+		smallHills = new TextureImage("Height Map WIP.png"); // custom greyscale shit
+		cornerHill = new TextureImage("corner heightmap.png");
 		grass = new TextureImage("grah texture.png"); // custom texture
+		desert = new TextureImage("desert texture.png");
+
+		carTx = new TextureImage("car tex.png");
 		ghostT = new TextureImage("brick1.jpg"); // (for now: bricks) I assume I just make this the normal player model but with differently colored shirts or something
 
 		boomtx = new TextureImage("boom.jpg"); // texture obtained from pexels.com, source: Pixabay, copyright free
@@ -234,15 +247,32 @@ public class MyGame extends VariableFrameRateGame
 		build(cube, new Vector3f(6,8.5f,10), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0,0,0));
 		satelliteArray[0] = cube; // load to array for future use
 
-		// build terrain object
+		// build the background terrain!
 		terr = new GameObject(GameObject.root(), terrS, grass);
-		build(terr, new Vector3f(0f, 0f, 0f), new Vector3f(100.0f, 4.0f, 100.0f), new Vector3f(0f, 0f, 0f));
-		terr.setHeightMap(hills);
+		build(terr, new Vector3f(200f, -50f, 200f), new Vector3f(200.0f, 100.0f, 200.0f), new Vector3f(0f, 90f, 0f));
+		terr.setHeightMap(cornerHill);
+		//
+		terr2 = new GameObject(GameObject.root(), terrS, grass);
+		build(terr2, new Vector3f(-200f, -50f, 200f), new Vector3f(200.0f, 100.0f, 200.0f), new Vector3f(0f, 0f, 0f));
+		terr2.setHeightMap(cornerHill);
+		//
+		terr3 = new GameObject(GameObject.root(), terrS, grass);
+		build(terr3, new Vector3f(200f, -50f, -200f), new Vector3f(200.0f, 100.0f, 200.0f), new Vector3f(0f, 180f, 0f));
+		terr3.setHeightMap(cornerHill);
+		//
+		terr4 = new GameObject(GameObject.root(), terrS, grass);
+		build(terr4, new Vector3f(-200f, -50f, -200f), new Vector3f(200.0f, 100.0f, 200.0f), new Vector3f(0f, 270f, 0f));
+		terr4.setHeightMap(cornerHill);
 
-		// build a tree
-		tree = new GameObject(GameObject.root(), treeS, treeTx);
-		build(tree, new Vector3f(10f, 2f, 4f), // calculation to place tree stump a little below the ground
-			new Vector3f(2.0f, 2.0f, 2.0f), new Vector3f(0f, 0f, 0f));
+		terr5 = new GameObject(GameObject.root(), cubeS, desert);
+		build(terr5, new Vector3f(-0, -4f, -0), new Vector3f(200.0f, 4.0f, 200.0f), new Vector3f(0f, 0f, 0f));
+		terr5.getRenderStates().setTiling(1);
+		terr5.getRenderStates().setTileFactor(10);
+		//terr5.getRenderStates().hasLighting(false);
+
+		// build the tree
+		tree = new GameObject(GameObject.root(), treeAS, treeTx);
+		build(tree, new Vector3f(10f, 7f, 4f), new Vector3f(2.0f, 2.0f, 2.0f), new Vector3f(0f, 0f, 0f));
 		
 		// build a tire
 		tire1 = new GameObject(GameObject.root(), tireS, tireTx);
@@ -250,7 +280,7 @@ public class MyGame extends VariableFrameRateGame
 			new Vector3f(3f, 3f, 3f), new Vector3f(0f, 0f, 0f));
 
         // build sphere
-		sphere = new GameObject(GameObject.root(), sphereS, spheretx);
+		sphere = new GameObject(GameObject.root(), sphereS, pyrtx);
         initialTranslation = (new Matrix4f()).translation(2,10.5f,-5);
         initialScale = (new Matrix4f()).scaling(0.5f);
         sphere.setLocalTranslation(initialTranslation);
@@ -258,7 +288,7 @@ public class MyGame extends VariableFrameRateGame
 		satelliteArray[1] = sphere; 
 
         // build tor
-        tor = new GameObject(GameObject.root(), torS, tortx);
+        tor = new GameObject(GameObject.root(), torS, pyrtx);
         initialTranslation = (new Matrix4f()).translation(-8,10.5f,8);
         initialScale = (new Matrix4f()).scaling(0.5f);
         tor.setLocalTranslation(initialTranslation);
@@ -282,7 +312,7 @@ public class MyGame extends VariableFrameRateGame
 		(zLine.getRenderStates()).setColor(new Vector3f(0f, 0f, 1f));
 		
         //build dolphin / car / avatar you get the point (no you dont) 
-        avatar = new GameObject(GameObject.root(), carS, treeTx);
+        avatar = new GameObject(GameObject.root(), avatarS, carTx);
 		build(avatar, new Vector3f(22.6f,4f,17), new Vector3f(3f,3f,3f), new Vector3f(65, 0,0));
 		//initialTranslation = (new Matrix4f()).translation(20,3.5f,10);
 		//initialScale = (new Matrix4f()).scaling(3.0f);
@@ -387,22 +417,25 @@ public class MyGame extends VariableFrameRateGame
         light1 = new Light();
 		light1.setSpecular(0.5f, 0f, 0f);
 		light1.setDiffuse(0.5f, 0f, 0f);
-		//light1.setAmbient(0.5f, 0f, 0f);
+		light1.setAmbient(0.5f, 0f, 0f);
 		light1.setLocation(new Vector3f((cube.getLocalLocation())).add(lightAbove));
+		light1.setLinearAttenuation(0.1f);
 		(engine.getSceneGraph()).addLight(light1);
 
 		light2 = new Light();
 		light2.setSpecular(0f, 0f, 0.5f);
 		light2.setDiffuse(0f, 0f, 0.5f);
-		//light2.setAmbient(0f, 0f, 0.5f);
+		light2.setAmbient(0f, 0f, 0.5f);
 		light2.setLocation(new Vector3f((sphere.getLocalLocation())).add(lightAbove));
+		light2.setLinearAttenuation(0.1f);
 		(engine.getSceneGraph()).addLight(light2);
 
 		light3 = new Light();
 		light3.setSpecular(0.5f, 0.5f, 0f);
 		light3.setDiffuse(0.5f, 0.5f, 0f);
-		//.setAmbient(0.5f, 0.5f, 0f);
+		light3.setAmbient(0.5f, 0.5f, 0f);
 		light3.setLocation(new Vector3f((tor.getLocalLocation())).add(lightAbove));
+		light3.setLinearAttenuation(0.1f);
 		(engine.getSceneGraph()).addLight(light3);
 
 		light4 = new Light();
@@ -410,12 +443,17 @@ public class MyGame extends VariableFrameRateGame
 		light4.setDiffuse(0f, 0.5f, 0f);
 		//.setAmbient(0f, 0.5f, 0f);
 		light4.setLocation(new Vector3f((tor.getLocalLocation())).add(lightAbove));
+		light4.setLinearAttenuation(0.1f);
 		(engine.getSceneGraph()).addLight(light4);
 
 		light5 = new Light();
-		light5.setSpecular(0.7f, 0.7f, 0.7f);
+		light5.setSpecular(0.9f, 0.9f, 0.9f);
 		light5.setDiffuse(0.7f, 0.7f, 0.7f);
-		//light4.setAmbient(0.3f, 0.3f, 0.3f);
+		light5.setAmbient(0.7f, 0.7f, 0.7f);
+		light5.setRange(0.7f);
+		light5.setType(LightType.SPOTLIGHT);
+		light5.setCutoffAngle(30f);
+		light5.setLinearAttenuation(0.1f);
 		cam = (engine.getRenderSystem().getViewport("MAIN").getCamera());
 		light5.setLocation(new Vector3f((cam.getLocation())));
 		(engine.getSceneGraph()).addLight(light5);
@@ -560,10 +598,11 @@ public class MyGame extends VariableFrameRateGame
 
 		Matrix4f translation = new Matrix4f(avatar.getWorldTranslation().translate(0, 1.5f, 0.5f));
 		tempTransform = toDoubleArray(translation.get(vals));
-		carPO = (engine.getSceneGraph()).addPhysicsBox(4.0f, tempTransform, boxSize);
+		carPO = (engine.getSceneGraph()).addPhysicsBox(6.0f, tempTransform, boxSize);
 		carPO.setTransform(tempTransform);
 		carPO.setBounciness(0.02f);
 		carPO.setFriction(3f);
+		carPO.setTransform(tempTransform);
 		avatar.setPhysicsObject(carPO);
 
 		translation = new Matrix4f(tire1.getWorldTranslation());
@@ -572,11 +611,11 @@ public class MyGame extends VariableFrameRateGame
 		tirePO.setBounciness(0.8f);
 		tire1.setPhysicsObject(tirePO);
 
-		translation = new Matrix4f(terr.getWorldTranslation().translate(0,3,0));
+		translation = new Matrix4f();
 		tempTransform = toDoubleArray(translation.get(vals));
 		terrPO = (engine.getSceneGraph()).addPhysicsStaticPlane(tempTransform, up, 0.0f);
 		terrPO.setBounciness(1.0f);
-		terr.setPhysicsObject(terrPO);
+		//terr.setPhysicsObject(terrPO);
 	}
 
 	public void initializeSound() {
@@ -597,7 +636,10 @@ public class MyGame extends VariableFrameRateGame
 		lastFrameTime = currFrameTime = System.currentTimeMillis();
 		elapsTime = 0.0;
 		(engine.getRenderSystem()).setWindowDimensions(1900,1000);
-	
+
+		// setup mouse wheel listener
+		engine.getRenderSystem().getGLCanvas().addMouseWheelListener(ml);
+
 		// ------------- initialize camera ------------------
 		createViewports();
 		cam = engine.getRenderSystem().getViewport("MAIN").getCamera();
@@ -618,8 +660,10 @@ public class MyGame extends VariableFrameRateGame
 		(engine.getSceneGraph()).addNodeController(shiCon);
 		shiCon.enable();
 
+		// start animations
 		//System.out.println("animation: " + carS.getAnimation("ACCEL"));
 		//carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+		//treeAS.playAnimation("DANCE", 1f, AnimatedShape.EndType.LOOP, 0);
 
 		// ----- Networking -----
 		System.out.println("initializing networking..");
@@ -797,6 +841,12 @@ public class MyGame extends VariableFrameRateGame
 			prevY = centerY;
 		}
     }
+	
+	/* - */
+		@Override
+	public void mouseWheelMoved(MouseWheelEvent e) {
+		orbitController.updateRadius(e.getWheelRotation());
+	}
 	/* --------------------- */
 
 	public void buildHUD() {
@@ -849,6 +899,19 @@ public class MyGame extends VariableFrameRateGame
 		}
 	}
 
+	private void animationHandler() {
+		if(getDistance(avatar.getWorldLocation(), tree.getWorldLocation()) < 30) { 
+			if(!treeDance) {
+				treeAS.playAnimation("DANCE", 1f, AnimatedShape.EndType.LOOP, 0);
+				treeDance = true;
+			}
+		}
+		else {
+			treeAS.stopAnimation();
+			treeDance = false;
+		}
+	}
+
 	@Override // simple key listener for testing mostly
 	public void keyPressed(KeyEvent e) {
 		switch(e.getKeyCode()) {
@@ -869,28 +932,28 @@ public class MyGame extends VariableFrameRateGame
 			case KeyEvent.VK_W:
 				if(!stopRev) {
 					revSound.play();
-					carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					//carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
 					revNow = elapsTime;
 					stopRev = true;
 				}
 				else if(revNow == 0 && !stopIdle) {
 					System.out.println("start");
 					idleSound.play();
-					carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					//carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
 					stopIdle = true;
 				}
 				break;
 			case KeyEvent.VK_S:
 				if(!stopBackRev) {
 					backRevSound.play();
-					carS.playAnimation("DECEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					//carS.playAnimation("DECEL", 1f, AnimatedShape.EndType.LOOP, 0);
 					backRevNow = elapsTime;
 					stopBackRev = true;
 				}
 				else if(backRevNow == 0 && !stopBackIdle) {
 					System.out.println("start");
 					backIdleSound.play();
-					carS.playAnimation("DECEL", 1f, AnimatedShape.EndType.LOOP, 0);
+					//carS.playAnimation("DECEL", 1f, AnimatedShape.EndType.LOOP, 0);
 					stopBackIdle = true;
 				}
 				break;
@@ -905,7 +968,7 @@ public class MyGame extends VariableFrameRateGame
 				if(stopIdle) {
 					System.out.println("stop");
 					idleSound.stop();
-					carS.stopAnimation();
+					//carS.stopAnimation();
 					stopIdle = false;
 				}
 				break;
@@ -913,7 +976,7 @@ public class MyGame extends VariableFrameRateGame
 				if(stopBackIdle) {
 					System.out.println("stop");
 					backIdleSound.stop();
-					carS.stopAnimation();
+					//carS.stopAnimation();
 					stopBackIdle = false;
 				}
 				break;
@@ -942,7 +1005,8 @@ public class MyGame extends VariableFrameRateGame
 
 		// moving light with camera
 		cam = (engine.getRenderSystem().getViewport("MAIN").getCamera());
-		light5.setLocation(new Vector3f((cam.getLocation())));
+		light5.setLocation(new Vector3f((avatar.getWorldLocation().add(0,2,0))));
+		light5.setDirection(avatar.getWorldForwardVector());
 
 		// ####### DELETE LATER OR FIX OR ADAPT LOL
 		// Update altitude of dolphin to hug height map
@@ -956,10 +1020,13 @@ public class MyGame extends VariableFrameRateGame
 		//overheadController.updateCameraPosition();
 		
 		// Animations
+		animationHandler(); // no this doesnt update lol
+		// make a sep method which goes thru an array of the animations and updates them automatically, this is annoying
 		//carTiresS.updateAnimation();
 		//carTiresS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
-		carS.updateAnimation();
+		//carS.updateAnimation();
 		//carS.playAnimation("ACCEL", 1f, AnimatedShape.EndType.LOOP, 0);
+		treeAS.updateAnimation();
 
 		// -input control-
 		im.update((float)deltaTime);
@@ -988,29 +1055,28 @@ public class MyGame extends VariableFrameRateGame
 		// Update physics
 		if(togglePhysics) {
 			physicsEngine.update((float)deltaTime);
-			AxisAngle4f aa = new AxisAngle4f();
-			Matrix4f mat = new Matrix4f();
-			Matrix4f mat2 = new Matrix4f().identity();
-			Matrix4f mat3 = new Matrix4f().identity();
-			Matrix4d mat4 = new Matrix4d();
-			checkForCollisions();
-			physicsEngine.update((float)deltaTime);
-			for(GameObject go:engine.getSceneGraph().getGameObjects()) {
-				if(go.getPhysicsObject() != null) {
-					// set translation
-					mat.set(toFloatArray(go.getPhysicsObject().getTransform()));
-					mat2.set(3,0,mat.m30());
-					mat2.set(3,1,mat.m31());
-					mat2.set(3,2,mat.m32());
-					//System.out.println("po tmat:\n" + mat);
-					//System.out.println("go tmat:\n" + mat2);
-					go.setLocalTranslation(mat2);
+		}
+		AxisAngle4f aa = new AxisAngle4f();
+		Matrix4f mat = new Matrix4f();
+		Matrix4f mat2 = new Matrix4f().identity();
+		Matrix4f mat3 = new Matrix4f().identity();
+		Matrix4d mat4 = new Matrix4d();
+		checkForCollisions();
+		for(GameObject go:engine.getSceneGraph().getGameObjects()) {
+			if(go.getPhysicsObject() != null) {
+				// set translation
+				mat.set(toFloatArray(go.getPhysicsObject().getTransform()));
+				mat2.set(3,0,mat.m30());
+				mat2.set(3,1,mat.m31());
+				mat2.set(3,2,mat.m32());
+				//System.out.println("po tmat:\n" + mat);
+				//System.out.println("go tmat:\n" + mat2);
+				go.setLocalTranslation(mat2);
 
-					// set rotation
-					mat.getRotation(aa);
-					mat3.rotation(aa);
-					go.setLocalRotation(mat3);
-				}
+				// set rotation
+				mat.getRotation(aa);
+				mat3.rotation(aa);
+				go.setLocalRotation(mat3);
 			}
 		}
 	}

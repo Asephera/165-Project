@@ -264,4 +264,9 @@ public class CameraOrbit3D {
         cameraElevation += amount;
         updateCameraPosition();
     }
+
+    public void updateRadius(float amount) {
+        cameraRadius += amount;
+        updateCameraPosition();
+    }
 }
